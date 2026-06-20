@@ -1,9 +1,3 @@
-var gulp = require( 'gulp' );
-var concat = require( 'gulp-concat' );
-var uglify = require( 'gulp-uglify' );
-var insert = require( 'gulp-insert' );
-var watch = require( 'gulp-watch' );
-
 /* global require */
 module.exports = function( grunt ) {
 	grunt.registerTask( 'build', require( './build/task' ) );
@@ -13,14 +7,8 @@ module.exports = function( grunt ) {
 		'./src/js/utils/utils.js',
 		'./src/js/utils/EventEmitter.js',
 		'./src/js/utils/DragListener.js',
-		'./src/js/**'
+		'./src/js/**/*.js'
 	];
-
-	var basicGulpStream = function( stream ) {
-		return stream
-			.pipe( concat( 'goldenlayout.js' ) )
-			.pipe( insert.wrap( '(function($){', '})(window.$);' ) );
-	};
 
 	// Project configuration.
 	grunt.initConfig( {
@@ -41,7 +29,7 @@ module.exports = function( grunt ) {
 			release: {
 				options: {
 					additionalFiles: [ 'bower.json' ],
-					beforeRelease: [ 'less', 'gulp:gl', 'gulp:glmin' ],
+					beforeRelease: [ 'less', 'concat', 'uglify' ],
 					tagName: 'v<%= version %>',
 					github: {
 						repo: 'deepstreamIO/golden-layout',
@@ -50,25 +38,25 @@ module.exports = function( grunt ) {
 				}
 			},
 			/***********************
-			 * GULP
+			 * CONCAT
 			 ***********************/
-			gulp: {
-				gl: {
+			concat: {
+				dist: {
 					options: {
-						tasks: basicGulpStream
+						banner: '(function($){',
+						footer: '})(window.$);'
 					},
 					src: sources,
 					dest: 'dist/goldenlayout.js'
-				},
-				glmin: {
-					options: {
-						tasks: function( stream ) {
-							return basicGulpStream( stream )
-								.pipe( uglify() )
-								.pipe( concat( 'goldenlayout.min.js' ) );
-						}
-					},
-					src: sources,
+				}
+			},
+
+			/***********************
+			 * UGLIFY
+			 ***********************/
+			uglify: {
+				dist: {
+					src: 'dist/goldenlayout.js',
 					dest: 'dist/goldenlayout.min.js'
 				}
 			},
@@ -86,7 +74,7 @@ module.exports = function( grunt ) {
 				travis: {
 					configFile: 'karma.conf.js',
 					singleRun: true,
-					browsers: [ 'PhantomJS' ]
+					browsers: [ 'ChromeHeadlessNoSandbox' ]
 				}
 			},
 
@@ -109,11 +97,12 @@ module.exports = function( grunt ) {
 		}
 	);
 
+	grunt.loadNpmTasks( 'grunt-contrib-concat' );
 	grunt.loadNpmTasks( 'grunt-contrib-less' );
+	grunt.loadNpmTasks( 'grunt-contrib-uglify' );
 	grunt.loadNpmTasks( 'grunt-contrib-watch' );
 	grunt.loadNpmTasks( 'grunt-release' );
 	grunt.loadNpmTasks( 'grunt-karma' );
-	grunt.loadNpmTasks( 'grunt-gulp' );
 
 	// Default task(s).
 	grunt.registerTask( 'default', [ 'watch' ] );
@@ -122,5 +111,5 @@ module.exports = function( grunt ) {
 	grunt.registerTask( 'test', [ 'karma:travis' ] );
 
 	// distribution support
-	grunt.registerTask( 'dist', [ 'build', 'less', 'gulp' ] );
+	grunt.registerTask( 'dist', [ 'build', 'less', 'concat', 'uglify' ] );
 };
