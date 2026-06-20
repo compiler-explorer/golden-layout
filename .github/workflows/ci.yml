@@ -1,0 +1,33 @@
+name: CI
+
+on:
+  push:
+    branches: [ ce-main ]
+  pull_request:
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    env:
+      # Karma's ChromeHeadlessNoSandbox launcher uses this; Chrome is
+      # preinstalled on the ubuntu-latest runner.
+      CHROME_BIN: /usr/bin/google-chrome-stable
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install grunt-cli
+        run: npm install -g grunt-cli
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Test and lint
+        run: npm test
+
+      - name: Build distributable
+        run: grunt dist
