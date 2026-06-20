@@ -13,13 +13,24 @@ module.exports = function(config) {
     frameworks: ['jasmine'],
 
 
+    // The legacy specs depend on running in declaration order (state is
+    // shared across `it` blocks within a describe), so disable Jasmine's
+    // default randomisation.
+    client: {
+      jasmine: {
+        random: false
+      }
+    },
+
+
     // list of files / patterns to load in the browser
     files: [
         './lib/jquery.js',
         './build/ns.js',
         './src/js/utils/utils.js',
-        './src/js/**',
-        './test/**'
+        './src/js/**/*.js',
+        './test/jasmine-compat.js',
+        './test/**/*.js'
     ],
 
 
@@ -61,7 +72,14 @@ module.exports = function(config) {
 
     // start these browsers
     // available browser launchers: https://npmjs.org/browse/keyword/karma-launcher
-    browsers: ['Chrome'/*, 'IE'*/],
+    browsers: ['ChromeHeadlessNoSandbox'],
+
+    customLaunchers: {
+      ChromeHeadlessNoSandbox: {
+        base: 'ChromeHeadless',
+        flags: ['--no-sandbox', '--disable-gpu']
+      }
+    },
 
 
     // Continuous Integration mode
