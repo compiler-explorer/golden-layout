@@ -3,4 +3,3 @@ typings
 .idea
 npm-debug.log
 lib/
-dist/
