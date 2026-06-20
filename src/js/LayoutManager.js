@@ -829,10 +829,11 @@ lm.utils.copy( lm.LayoutManager.prototype, {
 	 * @returns {void}
 	 */
 	_adjustToWindowMode: function() {
-		var popInButton = $( '<div class="lm_popin" title="' + this.config.labels.popin + '">' +
+		var popInButton = $( '<div class="lm_popin">' +
 			'<div class="lm_icon"></div>' +
 			'<div class="lm_bg"></div>' +
 			'</div>' );
+		popInButton.attr( 'title', this.config.labels.popin );
 
 		popInButton.click( lm.utils.fnBind( function() {
 			this.emit( 'popIn' );
