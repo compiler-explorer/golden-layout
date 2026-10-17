@@ -18,7 +18,7 @@ Compiler Explorer installs it through an npm alias, so code and CSS still refer 
 npm ci
 npm install -g grunt-cli
 grunt dist   # rebuild dist/ and src/css from the sources
-npm test     # Karma tests in headless Chrome, plus tslint
+npm test     # Karma tests in headless Chrome, plus a type-check of index.d.ts
 ```
 
 `dist/` and `src/css` are committed and published as they are, so commit the output of `grunt dist` with any source change. CI fails if they're out of date. See [`CLAUDE.md`](CLAUDE.md) for how the build fits together.

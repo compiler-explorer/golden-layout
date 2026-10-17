@@ -14,9 +14,9 @@ The build is driven by Grunt (needs `grunt-cli` installed globally: `npm install
 - `grunt build` — only the codegen step (`build/task.js`): walks `src/js`, regenerates `build/ns.js` and `index.html` (from `index.hbs`).
 - `grunt less` — compile `src/less/*.less` themes into `src/css/*.css`.
 - `grunt watch` (the default task) — rebuild and re-test on changes to `src/**` / `test/**`, with livereload.
-- `npm test` — runs `grunt test` (Karma single-run under headless Chrome) then `npm run tslint`. Needs Chrome/Chromium on `PATH` (or `CHROME_BIN` set); the `ChromeHeadlessNoSandbox` launcher in `karma.conf.js` runs with `--no-sandbox` for CI/root.
+- `npm test` — runs `grunt test` (Karma single-run under headless Chrome) then `npm run typecheck`. Needs Chrome/Chromium on `PATH` (or `CHROME_BIN` set); the `ChromeHeadlessNoSandbox` launcher in `karma.conf.js` runs with `--no-sandbox` for CI/root.
 - `grunt karma:unit` — local Karma runner (Chrome, watch mode, `singleRun: false`).
-- `npm run tslint` — lints `**/*.ts` (primarily `index.d.ts`); config in `tslint.json`.
+- `npm run typecheck` — type-checks `index.d.ts` with `tsc` (strict, no emit); config in `tsconfig.json`.
 
 There is no single-test runner flag; narrow a Karma run by temporarily editing the `files` globs in `karma.conf.js`, or `fdescribe`/`fit` in the relevant `test/*.js` spec.
 
@@ -49,7 +49,7 @@ State persistence: layouts serialize to/from a config object (`toConfig()` / con
 
 ## Types and tests
 
-- `index.d.ts` is the hand-maintained TypeScript declaration for the public API. Keep it in sync when changing public methods/signatures; it is what `tslint` checks.
+- `index.d.ts` is the hand-maintained TypeScript declaration for the public API. Keep it in sync when changing public methods/signatures; it is what `npm run typecheck` checks.
 - Tests are Jasmine specs in `test/*.js`, run in a real/headless browser via Karma (they need jQuery + the concatenated source, see `karma.conf.js` file list). `test/test-tools.js` holds shared helpers. Note `test/xss_tests.js` — title/HTML sanitization is security-relevant; preserve escaping (`lm.utils.stripTags`) when touching titles/tabs.
 
 ## Manual dev harness
