@@ -24,20 +24,6 @@ module.exports = function( grunt ) {
 			},
 
 			/***********************
-			 * RELEASE
-			 ***********************/
-			release: {
-				options: {
-					additionalFiles: [ 'bower.json' ],
-					beforeRelease: [ 'less', 'concat', 'uglify' ],
-					tagName: 'v<%= version %>',
-					github: {
-						repo: 'deepstreamIO/golden-layout',
-						accessTokenVar: 'GITHUB_ACCESS_TOKEN'
-					}
-				}
-			},
-			/***********************
 			 * CONCAT
 			 ***********************/
 			concat: {
@@ -101,7 +87,6 @@ module.exports = function( grunt ) {
 	grunt.loadNpmTasks( 'grunt-contrib-less' );
 	grunt.loadNpmTasks( 'grunt-contrib-uglify' );
 	grunt.loadNpmTasks( 'grunt-contrib-watch' );
-	grunt.loadNpmTasks( 'grunt-release' );
 	grunt.loadNpmTasks( 'grunt-karma' );
 
 	// Default task(s).
