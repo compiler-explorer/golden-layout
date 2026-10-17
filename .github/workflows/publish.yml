@@ -29,4 +29,19 @@ jobs:
             exit 1
           fi
 
+      - name: Install grunt-cli
+        run: npm install -g grunt-cli
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check the committed build output is up to date
+        run: |
+          grunt dist
+          if [ -n "$(git status --porcelain)" ]; then
+            git status --short
+            echo "The committed build output is stale: run 'grunt dist' and commit the result."
+            exit 1
+          fi
+
       - run: npm publish --provenance

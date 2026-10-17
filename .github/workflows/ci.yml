@@ -31,3 +31,11 @@ jobs:
 
       - name: Build distributable
         run: grunt dist
+
+      - name: Check the committed build output is up to date
+        run: |
+          if [ -n "$(git status --porcelain)" ]; then
+            git status --short
+            echo "The committed build output is stale: run 'grunt dist' and commit the result."
+            exit 1
+          fi
