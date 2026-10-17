@@ -46,6 +46,10 @@ exports.list = [
 		file: LM,
 		from: 'window.GoldenLayout = lm.LayoutManager;',
 		to: 'window.GoldenLayou = lm.LayoutManager;',
+		// Spec files that read GoldenLayout while being collected fail to
+		// load. initialisation-tests.js still loads, and its spec fails on
+		// its own assertion.
+		expectLoadFailure: true,
 		specs: [ IN + 'Finds the layoutmanager on the global namespace' ]
 	},
 	{
@@ -139,24 +143,17 @@ exports.list = [
 		]
 	},
 	{
-		id: 'wrap-component-in-stack',
-		file: LM,
-		from: '!( parent instanceof lm.items.Stack ) &&',
-		to: 'true &&',
+		id: 'stack-flag',
+		file: 'src/js/items/Stack.js',
+		from: 'this.isStack = true;',
+		to: 'this.isStack = false;',
 		specs: [ CF + 'creates the right primitive types: stack and component' ]
-	},
-	{
-		id: 'drag-source-new',
-		file: LM,
-		from: 'var dragSource = new lm.controls.DragSource( $( element ), itemConfig, this );',
-		to: 'var dragSource = lm.controls.DragSource( $( element ), itemConfig, this );',
-		specs: [ DD + 'creates a drag source', D + 'creates a drag source' ]
 	},
 	{
 		id: 'select-item-programmatic',
 		file: LM,
-		from: 'if( item && _$silent !== true ) {',
-		to: 'if( item && _$silent === true ) {',
+		from: 'if( item && _$silent !== true ) {\n\t\t\titem.select();',
+		to: 'if( item && _$silent !== true ) {\n\t\t\titem.deselect();',
 		specs: [ ES + 'changes selection programatically' ]
 	},
 	{
@@ -217,7 +214,7 @@ exports.list = [
 		file: 'src/js/items/Component.js',
 		from: 'componentConfig = $.extend( true, {}, this.config.componentState || {} );',
 		to: 'componentConfig = $.extend( true, {}, {} );',
-		specs: [ S + 'Can create a most basic layout' ]
+		specs: [ S + 'Can create a most basic layout', DD + 'creates a drag source', D + 'creates a drag source' ]
 	},
 	{
 		id: 'component-flag',
@@ -250,7 +247,7 @@ exports.list = [
 		from: 'this._config.componentState = state;\n\t\tthis.parent.emitBubblingEvent( \'stateChanged\' );',
 		to: 'this._config.componentState = state;',
 		specs: [ S + 'emits stateChanged when a component updates its state' ],
-		karmaTimingDependent: true
+		karmaTimingDependent: [ S + 'emits stateChanged when a component updates its state' ]
 	},
 	{
 		id: 'container-state-stored',
@@ -423,7 +420,14 @@ exports.list = [
 		file: 'src/js/items/Stack.js',
 		from: 'lm.items.AbstractContentItem.prototype.addChild.call( this, contentItem, index );',
 		to: '',
-		specs: [ E + 'can add children to the empty stack', TM + 'adds a child to the stack' ]
+		specs: [ E + 'can add children to the empty stack' ]
+	},
+	{
+		id: 'stack-add-child-parent',
+		file: 'src/js/items/Stack.js',
+		from: 'contentItem = this.layoutManager._$normalizeContentItem( contentItem, this );\n\t\tlm.items.AbstractContentItem.prototype.addChild',
+		to: 'contentItem = this.layoutManager._$normalizeContentItem( contentItem, this.parent );\n\t\tlm.items.AbstractContentItem.prototype.addChild',
+		specs: [ TM + 'adds a child to the stack' ]
 	},
 	{
 		id: 'stack-empty-init',
@@ -433,10 +437,10 @@ exports.list = [
 		specs: [ E + 'Creates an initial layout' ]
 	},
 	{
-		id: 'row-add-child-splitter',
+		id: 'row-flag',
 		file: 'src/js/items/RowOrColumn.js',
-		from: 'this.contentItems[ index - 1 ].element.after( splitterElement );',
-		to: 'this.contentItems[ index ].element.after( splitterElement );',
+		from: 'this.isRow = !isColumn;',
+		to: 'this.isRow = isColumn;',
 		specs: [ E + 'can manipulate the layout tree with an empty item present' ]
 	},
 	{
@@ -445,13 +449,6 @@ exports.list = [
 		from: 'type = isVertical ? \'column\' : \'row\';\n\t\t\trowOrColumn',
 		to: 'type = isVertical ? \'row\' : \'column\';\n\t\t\trowOrColumn',
 		specs: [ D + 'creates a new components if dragged', DD + 'creates a new components if dragged' ]
-	},
-	{
-		id: 'drag-source-deferred-config',
-		file: 'src/js/controls/DragSource.js',
-		from: 'itemConfig = itemConfig();',
-		to: '',
-		specs: [ DD + 'creates a new components if dragged' ]
 	},
 
 	/*
@@ -546,18 +543,11 @@ exports.list = [
 		specs: [ EE + 'triggers sets the right context' ]
 	},
 	{
-		id: 'emitter-unbind-callback',
+		id: 'emitter-unbind-noop',
 		file: EMITTER,
-		from: 'this._mSubscriptions[ sEvent ][ i ].fn === fCallback',
-		to: 'this._mSubscriptions[ sEvent ][ i ].fn !== fCallback',
-		specs: [ EE + 'unbinds events' ]
-	},
-	{
-		id: 'emitter-unbind-all',
-		file: EMITTER,
-		from: '( !fCallback || ',
-		to: '( fCallback && ',
-		specs: [ EE + 'unbinds all events if no context is provided' ]
+		from: 'this._mSubscriptions[ sEvent ].splice( i, 1 );',
+		to: 'this._mSubscriptions[ sEvent ].splice( i, 0 );',
+		specs: [ EE + 'unbinds events', EE + 'unbinds all events if no context is provided' ]
 	},
 	{
 		id: 'emitter-unbind-one',
@@ -661,7 +651,90 @@ exports.list = [
 ];
 
 /*
- * Specs that no reasonable source mutation makes fail. They are ported as-is
- * and listed here (and in the PR) for discussion.
+ * Vacuous specs: they have no assertion that any mutation can make fail. Most
+ * have no assertions at all and only check that a step doesn't throw; the two
+ * "registers listeners" specs assert that listeners haven't been called before
+ * attaching them, which nothing can break. They are ported as-is and listed in
+ * the PR for discussion. For these specs alone, a thrown error counts as a kill.
  */
-exports.vacuous = [];
+exports.vacuous = [
+	C + 'creates a layout',
+	C + 'registers listeners',
+	C + 'destroys the layout',
+	DD + 'destroys the layout',
+	DS + 'destroys the layout',
+	D + 'destroys the layout',
+	E + 'Creates an initial layout',
+	E + 'destroys the layout',
+	ES + 'destroys the layout',
+	EB + 'destroys the layout',
+	ID + 'creates a layout',
+	ID + 'destroys the layout',
+	IC + 'creates a layout',
+	IC + 'registeres listeners',
+	IC + 'destroys the layout',
+	PO + 'destroys the layout',
+	TB + 'destroys the layout',
+	TI + 'destroys the layout',
+	TM + 'Creates an initial layout'
+];
+
+/*
+ * Specs whose own check can't fail without throwing first, so only a crash
+ * kills them. Listed in the PR for discussion. For these, as for the vacuous
+ * specs, a thrown error counts as a kill.
+ */
+exports.crashOnly = {
+	// The check reads config...componentState.testValue, so any mutation that
+	// loses the state makes the spec's own expression throw.
+	[ S + 'returns the initial state' ]: 'its check dereferences the state it checks for',
+	// addChild on a stack makes the new item active, which throws if the item
+	// wasn't actually added, before the length check runs.
+	[ E + 'can add children to the empty stack' ]: 'Stack.addChild throws before the length check if adding fails'
+};
+
+/*
+ * Describes whose specs don't share state: each creates what it tests. In
+ * every other describe, a credited spec must be the first to fail, so that
+ * its failure isn't left over from an earlier spec.
+ */
+exports.independentDescribes = [
+	'create-config.tests.js > It creates and extends config segments correctly',
+	'create-from-config-tests.js > Creates the right structure based on the provided config',
+	'event-emitter-tests.js > the EventEmitter works',
+	'header-button-tests.js > HeaderButton does not allow HTML injection via its label or cssClass',
+	'minifier-tests.js > Can minify and unminify configuration objects',
+	'popin-button-tests.js > the pop-in button does not allow HTML injection via its label',
+	'xss_tests.js > Basic XSS filtering is applied'
+];
+
+/*
+ * Describes where the first N specs set up a layout and the rest only query
+ * it. A credited query spec needs the setup specs to pass, but an earlier
+ * query failing can't affect it.
+ */
+exports.readOnlyAfterSetup = {
+	'selector-tests.js > it is possible to select elements from the tree using selectors': 1
+};
+
+/*
+ * Mutations for which Karma and Vitest may fail different sets of specs.
+ * Everywhere else they must fail exactly the same specs.
+ */
+exports.allowedDifferences = {
+	// Karma ran every file in one page, with lm as a global, so the
+	// EventEmitter specs still pass there. Vitest loads each file in its own
+	// page, and without GoldenLayout every spec that uses it fails.
+	'export-global': 'lm was a global under Karma',
+	// Under Karma, layouts that a failed spec left behind stay in the shared
+	// page, so later files that count .lm_goldenlayout elements (initialisation
+	// tests) or drag onto the page also fail. Vitest isolates each file.
+	'destroy-items': 'leftover layouts leak across files under Karma',
+	'items-by-property': 'leftover layouts leak across files under Karma',
+	'stack-empty-init': 'leftover layouts leak across files under Karma',
+	// This mutates the shared default config. Under Karma that leaks into every
+	// later file in the page; Vitest isolates each file.
+	'create-config-copies': 'mutated default config leaks across files under Karma',
+	// Karma only sometimes catches this one (see the mutation).
+	'container-state-event': 'timing-dependent under Karma'
+};

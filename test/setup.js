@@ -17,14 +17,14 @@ addScript( goldenLayoutSource, 'goldenlayout.js' );
 
 // Karma loaded the sources unwrapped, so their `lm` namespace was a global.
 // The concatenated build wraps it in an IIFE; expose it for the specs that
-// use it directly.
-window.lm = window.GoldenLayout.__lm;
+// use it directly. (If GoldenLayout is missing, leave the specs to say so.)
+window.lm = window.GoldenLayout ? window.GoldenLayout.__lm : undefined;
 
-// Karma/Jasmine let the browser run a frame between specs, so work that
-// GoldenLayout defers to requestAnimationFrame (e.g. the throttled
-// stateChanged event from init) settled before the next spec. Vitest starts
-// the next spec straight away, so wait for a frame here too; otherwise such
-// an event can leak into the next spec's listeners.
+// Vitest starts the next spec straight away. GoldenLayout defers some work
+// to requestAnimationFrame (e.g. the throttled stateChanged event from
+// creating a layout), and without a frame in between, such an event can
+// reach the next spec's listeners. Draining a frame after each spec stops
+// that leak.
 afterEach( function() {
 	return new Promise( function( resolve ) {
 		requestAnimationFrame( function() {

@@ -35,9 +35,11 @@ describe( 'it can popout components into browserwindows', function(){
 	});
 
 	/**
-	 * TODO This test doens't run since karma injects
-	 * all sorts of stuff into the new window which throws errors
-	 * before GoldenLayout can initialise...
+	 * TODO These two don't run: the popout window loads the current page's
+	 * URL with a gl-window parameter and expects that page to create a
+	 * GoldenLayout from it. Under Vitest that page is the test runner's own,
+	 * which never does, so the popout never initialises. Running them would
+	 * need a dedicated page for popouts to load.
 	 */
 	it.skip( 'serialises the new window', async function(){
 		expect( layout.openPopouts.length ).toBe( 1 );
