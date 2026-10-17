@@ -1,5 +1,5 @@
 {
-  "name": "golden-layout",
+  "name": "@compiler-explorer/golden-layout",
   "version": "1.6.0",
   "author": "deepstreamHub GmbH",
   "license": "MIT",
@@ -34,12 +34,19 @@
   },
   "scripts": {
     "test": "grunt test && npm run tslint",
-    "tslint": "tslint \"**/*.ts\" -e \"node_modules/**\" -e \"typings/**\"",
-    "publish": "npm -s run tslint"
+    "tslint": "tslint \"**/*.ts\" -e \"node_modules/**\" -e \"typings/**\""
+  },
+  "files": [
+    "dist",
+    "src/css",
+    "index.d.ts"
+  ],
+  "publishConfig": {
+    "access": "public"
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/deepstreamIO/golden-layout.git"
+    "url": "git+https://github.com/compiler-explorer/golden-layout.git"
   },
   "keywords": [
     "layout manager",
@@ -49,9 +56,9 @@
     "popouts"
   ],
   "bugs": {
-    "url": "https://github.com/deepstreamIO/golden-layout/issues"
+    "url": "https://github.com/compiler-explorer/golden-layout/issues"
   },
-  "homepage": "https://github.com/deepstreamIO/golden-layout",
+  "homepage": "https://github.com/compiler-explorer/golden-layout",
   "npmName": "golden-layout",
   "npmFileMap": [
     {
