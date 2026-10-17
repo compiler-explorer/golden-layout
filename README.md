@@ -36,4 +36,4 @@ npm test     # Karma tests in headless Chrome, plus tslint
 
 ## License
 
-MIT. Originally by deepstreamHub GmbH; see [LICENSE](LICENSE).
+MIT, copyright deepstream.io; see [LICENSE](LICENSE).
