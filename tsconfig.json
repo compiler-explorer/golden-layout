@@ -1,11 +1,8 @@
 {
   "compilerOptions": {
-    "module": "commonjs",
-    "moduleResolution": "node"
+    "noEmit": true,
+    "strict": true,
+    "types": ["jquery"]
   },
-  "exclude": [
-    "node_modules",
-    "typings/browser",
-    "typings/browser.d.ts"
-  ]
+  "files": ["index.d.ts"]
 }
