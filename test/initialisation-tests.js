@@ -1,3 +1,6 @@
+import { describe, it, expect } from 'vitest';
+import { testTools } from './test-tools.js';
+
 describe( 'Can initialise the layoutmanager', function() {
 
 	var myLayout;

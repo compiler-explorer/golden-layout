@@ -1,3 +1,5 @@
+import { describe, it, expect } from 'vitest';
+
 /* global GoldenLayout */
 describe( 'Can minify and unminify configuration objects', function() {
 

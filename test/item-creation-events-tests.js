@@ -1,12 +1,15 @@
+import { describe, it, expect, vi } from 'vitest';
+import { testTools } from './test-tools.js';
+
 describe( 'emits events when items are created', function(){
 
-	var layout, eventListener = window.jasmine.createSpyObj( 'eventListener', [
-		'onItemCreated',
-		'onStackCreated',
-		'onComponentCreated',
-		'onRowCreated',
-		'onColumnCreated',
-	]);
+	var layout, eventListener = {
+		onItemCreated: vi.fn(),
+		onStackCreated: vi.fn(),
+		onComponentCreated: vi.fn(),
+		onRowCreated: vi.fn(),
+		onColumnCreated: vi.fn()
+	};
 
 	it( 'creates a layout', function(){
 		layout = new window.GoldenLayout({
@@ -44,18 +47,18 @@ describe( 'emits events when items are created', function(){
 	});
 
 	it( 'has called listeners', function(){
-		expect( eventListener.onItemCreated.calls.length ).toBe( 6 );
-		expect( eventListener.onStackCreated.calls.length ).toBe( 2 );
-		expect( eventListener.onRowCreated.calls.length ).toBe( 1 );
-		expect( eventListener.onColumnCreated.calls.length ).toBe( 1 );
-		expect( eventListener.onComponentCreated.calls.length ).toBe( 1 );
+		expect( eventListener.onItemCreated.mock.calls.length ).toBe( 6 );
+		expect( eventListener.onStackCreated.mock.calls.length ).toBe( 2 );
+		expect( eventListener.onRowCreated.mock.calls.length ).toBe( 1 );
+		expect( eventListener.onColumnCreated.mock.calls.length ).toBe( 1 );
+		expect( eventListener.onComponentCreated.mock.calls.length ).toBe( 1 );
 	});
 
 	it( 'provided the right arguments', function(){
-		expect( eventListener.onComponentCreated.mostRecentCall.args[0].type ).toEqual( 'component' );
-		expect( eventListener.onStackCreated.mostRecentCall.args[0].type ).toEqual( 'stack' );
-		expect( eventListener.onColumnCreated.mostRecentCall.args[0].type ).toEqual( 'column' );
-		expect( eventListener.onRowCreated.mostRecentCall.args[0].type ).toEqual( 'row' );
+		expect( eventListener.onComponentCreated.mock.lastCall[0].type ).toEqual( 'component' );
+		expect( eventListener.onStackCreated.mock.lastCall[0].type ).toEqual( 'stack' );
+		expect( eventListener.onColumnCreated.mock.lastCall[0].type ).toEqual( 'column' );
+		expect( eventListener.onRowCreated.mock.lastCall[0].type ).toEqual( 'row' );
 	});
 
 	it( 'destroys the layout', function(){

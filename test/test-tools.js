@@ -1,5 +1,18 @@
+import { onTestFinished, vi } from 'vitest';
 
-testTools = {};
+export var testTools = {};
+
+/**
+ * Polls until predicate() is truthy, failing after `timeout` ms. This is the
+ * Jasmine 1.x waitsFor(): a throwing predicate counts as "not yet".
+ */
+testTools.waitsFor = function( predicate, message, timeout ) {
+	return vi.waitFor( function() {
+		if ( !predicate() ) {
+			throw new Error( 'waitsFor timed out: ' + ( message || predicate.toString() ) );
+		}
+	}, { timeout: timeout || 5000, interval: 10 } );
+};
 
 testTools.createLayout = function( config ) {
 	var myLayout = new window.GoldenLayout( config );
@@ -8,10 +21,13 @@ testTools.createLayout = function( config ) {
 
 	myLayout.init();
 
-
-	waitsFor(function(){
-		return myLayout.isInitialised;
-	});
+	// Under Jasmine 1.x this was a waitsFor() queued after the rest of the
+	// calling spec's body; onTestFinished runs it at the same point.
+	onTestFinished( function() {
+		return testTools.waitsFor( function() {
+			return myLayout.isInitialised;
+		} );
+	} );
 
 	return myLayout;
 };
@@ -34,7 +50,7 @@ testTools.TestComponent = function( container, state ){
  *
  * @param   {String} path
  * @param   {GoldenLayout} layout
- * @param	{Function} expect Jasmine expect function
+ * @param	{Function} expect Vitest expect function
  *
  * @returns {AbstractContentItem}
  */

@@ -1,3 +1,6 @@
+import { describe, it, expect } from 'vitest';
+import { testTools } from './test-tools.js';
+
 describe( 'content items are abled to to emit events that bubble up the tree', function(){
 
 	var layout, itemWithTitle, itemWithoutTitle, stack;

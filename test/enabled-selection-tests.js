@@ -1,3 +1,6 @@
+import { describe, it, expect, vi } from 'vitest';
+import { testTools } from './test-tools.js';
+
 describe( 'content items are abled to to emit events that bubble up the tree', function(){
 
 	var layout, selectionChangedSpy, stackA, stackB;
@@ -43,7 +46,7 @@ describe( 'content items are abled to to emit events that bubble up the tree', f
 		expect( stackA.type ).toBe( 'stack' );
 		expect( stackB.type ).toBe( 'stack' );
 
-		selectionChangedSpy = window.jasmine.createSpyObj( 'selectionChanged', ['onselectionChanged'] );
+		selectionChangedSpy = { onselectionChanged: vi.fn() };
 	
 		layout.on( 'selectionChanged', selectionChangedSpy.onselectionChanged );
 	});
@@ -51,14 +54,14 @@ describe( 'content items are abled to to emit events that bubble up the tree', f
 	it( 'clicks a header and it selects a stack', function(){
 		var headerElement = stackA.element.find( '.lm_header' );
 		expect( headerElement.length ).toBe( 1 );
-		expect( selectionChangedSpy.onselectionChanged.calls.length ).toBe( 0 );
+		expect( selectionChangedSpy.onselectionChanged.mock.calls.length ).toBe( 0 );
 		expect( layout.selectedItem ).toBe( null );
 		expect( headerElement.hasClass( 'lm_selectable' ) ).toBe( true );
 		expect( stackA.element.hasClass( 'lm_selected' ) ).toBe( false );
 
 		headerElement.trigger( 'click' );
 
-		expect( selectionChangedSpy.onselectionChanged.calls.length ).toBe( 1 );
+		expect( selectionChangedSpy.onselectionChanged.mock.calls.length ).toBe( 1 );
 		expect( layout.selectedItem ).toBe( stackA );
 		expect( stackA.element.hasClass( 'lm_selected' ) ).toBe( true );
 	});
@@ -66,14 +69,14 @@ describe( 'content items are abled to to emit events that bubble up the tree', f
 	it( 'clicks changes selection', function(){
 		var headerElement = stackB.element.find( '.lm_header' );
 		expect( headerElement.length ).toBe( 1 );
-		expect( selectionChangedSpy.onselectionChanged.calls.length ).toBe( 1 );
+		expect( selectionChangedSpy.onselectionChanged.mock.calls.length ).toBe( 1 );
 		expect( layout.selectedItem ).toBe( stackA );
 		expect( headerElement.hasClass( 'lm_selectable' ) ).toBe( true );
 		expect( stackA.element.hasClass( 'lm_selected' ) ).toBe( true );
 
 		headerElement.trigger( 'click' );
 
-		expect( selectionChangedSpy.onselectionChanged.calls.length ).toBe( 2 );
+		expect( selectionChangedSpy.onselectionChanged.mock.calls.length ).toBe( 2 );
 		expect( layout.selectedItem ).toBe( stackB );
 		expect( stackA.element.hasClass( 'lm_selected' ) ).toBe( false );
 		expect( stackB.element.hasClass( 'lm_selected' ) ).toBe( true );
@@ -82,14 +85,14 @@ describe( 'content items are abled to to emit events that bubble up the tree', f
 	it( 'changes selection programatically', function(){
 		var headerElement = stackA.element.find( '.lm_header' );
 		expect( headerElement.length ).toBe( 1 );
-		expect( selectionChangedSpy.onselectionChanged.calls.length ).toBe( 2 );
+		expect( selectionChangedSpy.onselectionChanged.mock.calls.length ).toBe( 2 );
 		expect( layout.selectedItem ).toBe( stackB );
 		expect( headerElement.hasClass( 'lm_selectable' ) ).toBe( true );
 		expect( stackA.element.hasClass( 'lm_selected' ) ).toBe( false );
 
 		layout.selectItem( stackA );
 
-		expect( selectionChangedSpy.onselectionChanged.calls.length ).toBe( 4 );
+		expect( selectionChangedSpy.onselectionChanged.mock.calls.length ).toBe( 4 );
 		expect( layout.selectedItem ).toBe( stackA );
 		expect( stackA.element.hasClass( 'lm_selected' ) ).toBe( true );
 		expect( stackB.element.hasClass( 'lm_selected' ) ).toBe( false );

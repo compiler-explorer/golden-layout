@@ -1,3 +1,5 @@
+import { describe, it, expect } from 'vitest';
+
 describe('It creates and extends config segments correctly', function(){
 
 	it( 'doesn\'t change the default config when calling extend', function(){

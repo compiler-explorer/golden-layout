@@ -18,8 +18,8 @@ module.exports = function( grunt ) {
 			 * WATCH
 			 ***********************/
 			watch: {
-				tasks: [ 'dist', 'test' ],
-				files: [ './src/**', './test/**' ],
+				tasks: [ 'dist' ],
+				files: [ './src/**' ],
 				options: { livereload: 5051 },
 			},
 
@@ -47,23 +47,6 @@ module.exports = function( grunt ) {
 				}
 			},
 
-			/***********************
-			 * KARMA
-			 ***********************/
-			karma: {
-				unit: {
-					configFile: 'karma.conf.js',
-					background: true,
-					singleRun: false
-				}
-				,
-				travis: {
-					configFile: 'karma.conf.js',
-					singleRun: true,
-					browsers: [ 'ChromeHeadlessNoSandbox' ]
-				}
-			},
-
 			less: {
 				development: {
 					options: {
@@ -87,13 +70,9 @@ module.exports = function( grunt ) {
 	grunt.loadNpmTasks( 'grunt-contrib-less' );
 	grunt.loadNpmTasks( 'grunt-contrib-uglify' );
 	grunt.loadNpmTasks( 'grunt-contrib-watch' );
-	grunt.loadNpmTasks( 'grunt-karma' );
 
 	// Default task(s).
 	grunt.registerTask( 'default', [ 'watch' ] );
-
-	// travis support
-	grunt.registerTask( 'test', [ 'karma:travis' ] );
 
 	// distribution support
 	grunt.registerTask( 'dist', [ 'build', 'less', 'concat', 'uglify' ] );
