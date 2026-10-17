@@ -46,6 +46,8 @@ export default defineConfig( {
 		// describe, and rely on running in declaration order.
 		clearMocks: false,
 		sequence: { shuffle: false },
+		// One browser page at a time: the files run one after another.
+		fileParallelism: false,
 		browser: {
 			enabled: true,
 			headless: true,

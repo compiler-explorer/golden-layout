@@ -9,15 +9,16 @@
  * claims to kill fails in each suite. Also checks that every claimed spec
  * passes on unmodified code first.
  *
- *   node test/mutations/run.js [--karma-dir DIR] [--jobs N] [--out FILE] [ID...]
+ *   node test/mutations/run.js [--karma-dir DIR] [--out FILE] [ID...]
  *
  * With no IDs, every mutation runs. DIR is a checkout of the last Karma-based
  * commit, with its dependencies installed, for example:
  *
  *   git worktree add ../gl-karma 2b773c4 && (cd ../gl-karma && npm ci)
  *
- * Its src/js must match this checkout's. Karma runs --jobs (default 4) at a
- * time, each in its own copy of DIR. --out writes the full results as JSON.
+ * Its src/js must match this checkout's; Karma runs in a temporary copy of it.
+ * Only one browser runs at a time (Vitest, then Karma, per mutation), at
+ * nice 19. --out writes the full results as JSON.
  *
  * src/js is modified in place while a mutation runs and restored afterwards
  * (also on Ctrl-C), so the script refuses to start if src/js has local
@@ -36,12 +37,10 @@ var repo = path.resolve( __dirname, '../..' );
 var mutations = require( './mutations.js' );
 
 function parseArgs( argv ) {
-	var args = { karmaDir: null, jobs: 4, out: null, ids: [] };
+	var args = { karmaDir: null, out: null, ids: [] };
 	for( var i = 0; i < argv.length; i++ ) {
 		if( argv[ i ] === '--karma-dir' ) {
 			args.karmaDir = path.resolve( argv[ ++i ] );
-		} else if( argv[ i ] === '--jobs' ) {
-			args.jobs = parseInt( argv[ ++i ], 10 );
 		} else if( argv[ i ] === '--out' ) {
 			args.out = path.resolve( argv[ ++i ] );
 		} else {
@@ -53,7 +52,7 @@ function parseArgs( argv ) {
 
 function run( cmd, cmdArgs, options ) {
 	return new Promise( function( resolve ) {
-		var child = childProcess.spawn( cmd, cmdArgs, Object.assign( { stdio: [ 'ignore', 'pipe', 'pipe' ] }, options ) );
+		var child = childProcess.spawn( 'nice', [ '-n', '19', cmd ].concat( cmdArgs ), Object.assign( { stdio: [ 'ignore', 'pipe', 'pipe' ] }, options ) );
 		var output = '';
 		child.stdout.on( 'data', function( d ) { output += d; } );
 		child.stderr.on( 'data', function( d ) { output += d; } );
@@ -194,19 +193,14 @@ function main() {
 		process.exit( 130 );
 	} );
 
-	var karmaDirs = [];
-	if( args.karmaDir ) {
-		for( var i = 0; i < args.jobs; i++ ) {
-			karmaDirs.push( copyKarmaDir( args.karmaDir, path.join( tmpRoot, 'karma-' + i ) ) );
-		}
-	}
+	var karmaDir = args.karmaDir ? copyKarmaDir( args.karmaDir, path.join( tmpRoot, 'karma' ) ) : null;
 
 	var report = { baseline: {}, mutations: [] };
 
 	console.log( 'Baseline (unmodified source)...' );
 	return runVitest().then( function( vitestBase ) {
 		var order = Object.keys( vitestBase.results );
-		return ( args.karmaDir ? runKarma( karmaDirs[ 0 ], order ) : Promise.resolve( null ) ).then( function( karmaBase ) {
+		return ( args.karmaDir ? runKarma( karmaDir, order ) : Promise.resolve( null ) ).then( function( karmaBase ) {
 			report.baseline = { vitest: vitestBase, karma: karmaBase };
 			var problems = [];
 			order.forEach( function( spec ) {
@@ -230,58 +224,45 @@ function main() {
 				throw new Error( problems.join( '\n' ) );
 			}
 			console.log( 'Baseline OK: ' + order.length + ' specs, all pass or are skipped in ' + ( karmaBase ? 'both suites' : 'Vitest' ) + '.' );
-			return runMutations( selected, karmaDirs, order, report, pendingRestores );
+			return runMutations( selected, karmaDir, order, report, pendingRestores );
 		} );
 	} ).then( function() {
 		return summarise( report, args, mutations );
 	} );
 }
 
-function runMutations( selected, karmaDirs, order, report, pendingRestores ) {
-	// Vitest runs in the repo itself, one mutation at a time; Karma runs in
-	// parallel, each job in its own copy of the old checkout.
-	var vitestChain = Promise.resolve();
-	var freeKarmaDirs = karmaDirs.slice();
-	var karmaWaiters = [];
+// Apply a mutation in `root`, run `suite`, and restore the source.
+function withMutation( root, m, pendingRestores, suite ) {
+	var restore = applyMutation( root, m );
+	pendingRestores.push( restore );
+	var done = function() {
+		restore();
+		pendingRestores.splice( pendingRestores.indexOf( restore ), 1 );
+	};
+	return suite().then( function( r ) {
+		done();
+		return r;
+	}, function( e ) {
+		done();
+		throw e;
+	} );
+}
 
-	function withKarmaDir( fn ) {
-		return new Promise( function( resolve ) {
-			var go = function( dir ) {
-				fn( dir ).then( function( r ) {
-					var waiter = karmaWaiters.shift();
-					if( waiter ) waiter( dir ); else freeKarmaDirs.push( dir );
-					resolve( r );
-				} );
-			};
-			var dir = freeKarmaDirs.shift();
-			if( dir ) go( dir ); else karmaWaiters.push( go );
-		} );
-	}
-
-	return Promise.all( selected.map( function( m ) {
-		var vitestDone = vitestChain = vitestChain.then( function() {
-			var restore = applyMutation( repo, m );
-			pendingRestores.push( restore );
-			return runVitest().then( function( r ) {
-				restore();
-				pendingRestores.splice( pendingRestores.indexOf( restore ), 1 );
-				return r;
-			}, function( e ) {
-				restore();
-				throw e;
+function runMutations( selected, karmaDir, order, report, pendingRestores ) {
+	// Strictly one browser at a time: each mutation runs Vitest, then Karma.
+	return selected.reduce( function( chain, m ) {
+		return chain.then( function() {
+			return withMutation( repo, m, pendingRestores, runVitest );
+		} ).then( function( vitest ) {
+			if( !karmaDir ) {
+				return [ vitest, null ];
+			}
+			return withMutation( karmaDir, m, pendingRestores, function() {
+				return runKarma( karmaDir, order );
+			} ).then( function( karma ) {
+				return [ vitest, karma ];
 			} );
-		} );
-		var karmaDone = karmaDirs.length ? withKarmaDir( function( dir ) {
-			var restore = applyMutation( dir, m );
-			pendingRestores.push( restore );
-			return runKarma( dir, order ).then( function( r ) {
-				restore();
-				pendingRestores.splice( pendingRestores.indexOf( restore ), 1 );
-				return r;
-			} );
-		} ) : Promise.resolve( null );
-
-		return Promise.all( [ vitestDone, karmaDone ] ).then( function( res ) {
+		} ).then( function( res ) {
 			var vitest = res[ 0 ], karma = res[ 1 ];
 			var entry = {
 				id: m.id,
@@ -316,7 +297,7 @@ function runMutations( selected, karmaDirs, order, report, pendingRestores ) {
 				}
 			} );
 		} );
-	} ) );
+	}, Promise.resolve() );
 }
 
 function summarise( report, args, mutations ) {
