@@ -29,7 +29,9 @@
  *     readOnlyAfterSetup describe, no earlier setup spec failed).
  * Specs listed as vacuous or crashOnly in mutations.js may be killed by a
  * thrown error instead.
- * A mutation must kill each of its specs in every repeat: --repeat Vitest runs
+ * A mutation must kill each of its specs in every repeat (a mutation's
+ * karmaNotRequired lists specs whose Karma result is reported but not
+ * required, with the reason): --repeat Vitest runs
  * (default 2) and --karma-repeat Karma runs (default 1). The two suites must
  * fail the same specs, unless the mutation is in allowedDifferences. The
  * unmutated baseline runs --baseline-runs times (default 3) in each suite.
@@ -377,7 +379,7 @@ function checkBaseline( vitestRuns, karmaRuns ) {
 		}
 	} );
 	mutations.list.forEach( function( m ) {
-		m.specs.concat( m.karmaTimingDependent || [] ).forEach( function( spec ) {
+		m.specs.concat( Object.keys( m.karmaNotRequired || {} ) ).forEach( function( spec ) {
 			if( !( spec in reference ) ) problems.push( m.id + ' names an unknown spec: ' + spec );
 		} );
 	} );
@@ -417,15 +419,15 @@ function evaluate( m, vitestRuns, karmaRuns, order ) {
 		runProblems( r, order, m ).forEach( function( p ) { entry.problems.push( 'Karma run ' + ( i + 1 ) + ': ' + p ); } );
 	} );
 	m.specs.forEach( function( spec ) {
-		var timingDependent = ( m.karmaTimingDependent || [] ).indexOf( spec ) !== -1;
+		var karmaNotRequired = ( m.karmaNotRequired || {} )[ spec ] || null;
 		var s = {
 			spec: spec,
 			vitest: vitestRuns.map( function( r ) { return judge( r, spec, order ); } ),
 			karma: karmaRuns.map( function( r ) { return judge( r, spec, order ); } ),
-			karmaTimingDependent: timingDependent
+			karmaNotRequired: karmaNotRequired
 		};
 		s.killed = s.vitest.every( function( j ) { return j.killed; } ) &&
-			( timingDependent || s.karma.every( function( j ) { return j.killed; } ) );
+			( karmaNotRequired !== null || s.karma.every( function( j ) { return j.killed; } ) );
 		if( !s.killed ) {
 			entry.problems.push( 'not killed: ' + spec );
 		}
@@ -515,7 +517,7 @@ function main() {
 						var which = i < s.vitest.length ? 'vitest' : 'karma';
 						if( !j.killed || i === 0 || i === s.vitest.length ) {
 							console.log( '        ' + which + ': ' + ( j.killed ? '' : 'NOT KILLED, ' ) + j.reason +
-								( which === 'karma' && s.karmaTimingDependent ? ' [timing-dependent in Karma, not required]' : '' ) );
+								( which === 'karma' && s.karmaNotRequired ? ' [not required under Karma: ' + s.karmaNotRequired + ']' : '' ) );
 						}
 					} );
 				} );

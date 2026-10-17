@@ -50,7 +50,12 @@ exports.list = [
 		// load. initialisation-tests.js still loads, and its spec fails on
 		// its own assertion.
 		expectLoadFailure: true,
-		specs: [ IN + 'Finds the layoutmanager on the global namespace' ]
+		specs: [ IN + 'Finds the layoutmanager on the global namespace' ],
+		// Under Karma every file shares one page, and header-button-tests.js
+		// throwing while loading stops the later files' specs from running.
+		karmaNotRequired: {
+			[ IN + 'Finds the layoutmanager on the global namespace' ]: 'an earlier file fails to load and the spec never runs'
+		}
 	},
 	{
 		id: 'register-component-check',
@@ -96,7 +101,6 @@ exports.list = [
 			C + 'destroys the layout',
 			DD + 'destroys the layout',
 			DS + 'destroys the layout',
-			D + 'destroys the layout',
 			E + 'destroys the layout',
 			ES + 'destroys the layout',
 			EB + 'destroys the layout',
@@ -106,6 +110,17 @@ exports.list = [
 			TB + 'destroys the layout',
 			TI + 'destroys the layout'
 		]
+	},
+	{
+		// Breaks destroy only for layouts with drag sources, after their items
+		// are gone. destroy-items would also do for drag-tests.js under Vitest,
+		// but under Karma the layouts it leaves behind in the shared page break
+		// that file's drag spec first.
+		id: 'destroy-drag-sources',
+		file: LM,
+		from: 'dragSource._dragListener.destroy();',
+		to: 'dragSource._dragListener.destroyed();',
+		specs: [ D + 'destroys the layout', DD + 'destroys the layout' ]
 	},
 	{
 		id: 'destroy-clear-root',
@@ -247,7 +262,9 @@ exports.list = [
 		from: 'this._config.componentState = state;\n\t\tthis.parent.emitBubblingEvent( \'stateChanged\' );',
 		to: 'this._config.componentState = state;',
 		specs: [ S + 'emits stateChanged when a component updates its state' ],
-		karmaTimingDependent: [ S + 'emits stateChanged when a component updates its state' ]
+		karmaNotRequired: {
+			[ S + 'emits stateChanged when a component updates its state' ]: 'timing-dependent under Karma'
+		}
 	},
 	{
 		id: 'container-state-stored',
