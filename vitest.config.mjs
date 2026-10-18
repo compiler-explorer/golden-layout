@@ -11,9 +11,9 @@ const buildScript = path.join( root, 'build/build.js' );
 
 /**
  * Builds the library in memory with build/build.js, exactly as `npm run build`
- * writes dist/goldenlayout.js from build/ns.js and src/js. The tests run
- * against this build rather than the individual source files, so they
- * exercise the code that ships, without needing a build first.
+ * writes dist/goldenlayout.js from src/js. The tests run against this build
+ * rather than the individual source files, so they exercise the code that
+ * ships, without needing a build first.
  */
 function concatenatedBuild() {
 	delete require.cache[ buildScript ];
@@ -24,7 +24,6 @@ function concatenatedBuild() {
 function isBuildInput( file ) {
 	file = path.resolve( root, file );
 	return ( file.startsWith( path.join( root, 'src/js' ) + path.sep ) && file.endsWith( '.js' ) ) ||
-		file === path.join( root, 'build/ns.js' ) ||
 		file === buildScript;
 }
 

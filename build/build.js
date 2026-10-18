@@ -2,15 +2,16 @@
 /**
  * Builds the distributable files:
  *
- * 1. build/ns.js, the `lm` namespace object, from the directories under
- *    src/js, and index.html (the manual dev harness) from index.hbs.
+ * 1. index.html (the manual dev harness) from index.hbs.
  * 2. src/css/*.css (with source maps) from src/less/*.less.
- * 3. dist/goldenlayout.js: build/ns.js and the src/js files, joined in order
- *    and wrapped in `(function($){...})(window.$);`.
+ * 3. dist/goldenlayout.js: a declaration of the `lm` namespace object (one
+ *    entry per directory under src/js), then the src/js files, joined in
+ *    order and wrapped in `(function($){...})(window.$);`.
  * 4. dist/goldenlayout.min.js, minified with UglifyJS.
  *
- * Run with `npm run build`. vitest.config.mjs uses `concatenated()` to build
- * the library in memory for the tests.
+ * None of these are committed. Run with `npm run build`; `npm pack` and
+ * `npm publish` run it first (the `prepack` script). vitest.config.mjs uses
+ * `concatenated()` to build the library in memory for the tests.
  */
 'use strict';
 
@@ -51,8 +52,7 @@ function compare( a, b ) {
 
 /**
  * The library's source files, in concatenation order, relative to the repo
- * root: build/ns.js, then firstSources, then the rest of src/js in path
- * order, ignoring case.
+ * root: firstSources, then the rest of src/js in path order, ignoring case.
  */
 function sources() {
 	var rest = walk( jsPath, '' ).files
@@ -60,19 +60,33 @@ function sources() {
 		.map( function( file ) { return file.slice( 1 ); } )
 		.filter( function( file ) { return firstSources.indexOf( file ) === -1; } )
 		.sort( function( a, b ) { return a.localeCompare( b, 'en' ); } );
-	return [ 'build/ns.js' ].concat( firstSources.concat( rest ).map( function( file ) {
+	return firstSources.concat( rest ).map( function( file ) {
 		return 'src/js/' + file;
-	} ) );
+	} );
+}
+
+// The `lm` namespace: an empty object for each directory under src/js.
+function namespace() {
+	var directories = {};
+	walk( jsPath, '' ).directories.sort( compare ).forEach( function( dir ) {
+		var node = directories;
+		dir.split( '/' ).forEach( function( segment ) {
+			if( segment.length === 0 ) return;
+			node = node[ segment ] = node[ segment ] || {};
+		} );
+	} );
+	return directories;
 }
 
 /** dist/goldenlayout.js, built from the files on disk. */
 function concatenated() {
-	return '(function($){' + sources().map( function( file ) {
+	var declaration = 'var lm=' + JSON.stringify( namespace() ) + ';';
+	return '(function($){' + [ declaration ].concat( sources().map( function( file ) {
 		return read( path.join( root, file ) );
-	} ).join( '\n' ) + '})(window.$);';
+	} ) ).join( '\n' ) + '})(window.$);';
 }
 
-function buildNamespaceAndIndex() {
+function buildIndex() {
 	var handlebars = require( 'handlebars' );
 	handlebars.registerHelper( 'toJSON', function( input ) {
 		return new handlebars.SafeString( JSON.stringify( input ) );
@@ -80,23 +94,13 @@ function buildNamespaceAndIndex() {
 
 	// The dev harness loads these two before the rest.
 	var earlyFiles = [ '/utils/utils.js', '/items/AbstractContentItem.js' ];
-	var tree = walk( jsPath, '' );
-	var files = earlyFiles.concat( tree.files.filter( function( file ) {
+	var files = earlyFiles.concat( walk( jsPath, '' ).files.filter( function( file ) {
 		return earlyFiles.indexOf( file ) === -1;
 	} ).sort( compare ) );
-	var directories = {};
-	tree.directories.sort( compare ).forEach( function( dir ) {
-		var node = directories;
-		dir.split( '/' ).forEach( function( segment ) {
-			if( segment.length === 0 ) return;
-			node = node[ segment ] = node[ segment ] || {};
-		} );
-	} );
 
-	fs.writeFileSync( path.join( root, 'build/ns.js' ), 'var lm=' + JSON.stringify( directories ) + ';' );
 	// index.hbs starts with a byte order mark, which index.html keeps.
 	var template = handlebars.compile( fs.readFileSync( path.join( root, 'index.hbs' ), 'utf8' ) );
-	fs.writeFileSync( path.join( root, 'index.html' ), template( { files: files, directories: directories } ) );
+	fs.writeFileSync( path.join( root, 'index.html' ), template( { files: files, directories: namespace() } ) );
 }
 
 function buildCss() {
@@ -141,7 +145,7 @@ exports.concatenated = concatenated;
 if( require.main === module ) {
 	// less resolves relative paths against the working directory.
 	process.chdir( root );
-	buildNamespaceAndIndex();
+	buildIndex();
 	buildCss().then( buildDist ).catch( function( error ) {
 		console.error( error );
 		process.exitCode = 1;
