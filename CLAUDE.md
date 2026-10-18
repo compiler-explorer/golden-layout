@@ -8,7 +8,7 @@ Compiler Explorer's fork of [Golden Layout](https://golden-layout.com/) 1.5.x �
 
 ## Commands
 
-- `npm run build` — full build (`build/build.js`): regenerates `build/ns.js` and `index.html` (from `index.hbs`), compiles the `src/less/*.less` themes into `src/css/*.css` with source maps, concatenates `dist/goldenlayout.js` and minifies it into `dist/goldenlayout.min.js` with UglifyJS. Commit its output with any source change.
+- `npm run build` — full build (`build/build.js`): generates `index.html` (from `index.hbs`), compiles the `src/less/*.less` themes into `src/css/*.css` with source maps, concatenates `dist/goldenlayout.js` and minifies it into `dist/goldenlayout.min.js` with UglifyJS. None of this output is committed (see `.gitignore`); `npm pack`/`npm publish` run the build first via the `prepack` script.
 - `npm test` — runs the Vitest suite once (browser mode, headless Chrome) then `npm run typecheck`. Playwright drives the system Chrome (`channel: 'chrome'` in `vitest.config.mjs`), so Chrome must be installed; Playwright's own browsers are not used.
 - `npx vitest` — the same suite in watch mode. `npx vitest run test/title-tests.js` runs one file; `-t '<name>'` filters by spec name.
 - `npm run typecheck` — type-checks `index.d.ts` with `tsc` (strict, no emit); config in `tsconfig.json`.
@@ -21,8 +21,8 @@ Many specs share state across the `it` blocks of a `describe` and rely on runnin
 
 The shipped file is produced by **plain concatenation, not a module bundler**. There is no `require`/`import` between source files — everything hangs off a single global `lm` namespace object.
 
-- `build/ns.js` declares `var lm = {config, container, controls, errors, items, utils}` and is the **first** file concatenated. It is generated from the `src/js` directory tree by `npm run build`, so adding a new subdirectory under `src/js` requires regenerating it.
-- Concatenation order (`sources()` in `build/build.js`): `build/ns.js`, then `utils/utils.js`, `utils/EventEmitter.js`, `utils/DragListener.js`, then the rest of `src/js/**/*.js` sorted by path, ignoring case. The three utils come first because other files reference them at definition time.
+- The build starts with `var lm = {config, container, controls, errors, items, utils}`, generated from the directories under `src/js`, so a new subdirectory gets a namespace slot automatically.
+- Concatenation order (`sources()` in `build/build.js`): after that declaration, `utils/utils.js`, `utils/EventEmitter.js`, `utils/DragListener.js`, then the rest of `src/js/**/*.js` sorted by path, ignoring case. The three utils come first because other files reference them at definition time.
 - The concatenated result is wrapped in `(function($){ ... })(window.$)`, which is how `$` is in scope everywhere without an explicit import.
 
 Consequence: when adding a file, place classes on the correct `lm.<namespace>.<Name>` slot, and remember that anything referenced at load time (not just call time) must be concatenated earlier.
@@ -43,7 +43,7 @@ State persistence: layouts serialize to/from a config object (`toConfig()` / con
 ## Types and tests
 
 - `index.d.ts` is the hand-maintained TypeScript declaration for the public API. Keep it in sync when changing public methods/signatures; it is what `npm run typecheck` checks.
-- Tests are Vitest specs in `test/*tests.js`, run in headless Chrome via Vitest browser mode (they need real layout, so not jsdom). `test/setup.js` loads `lib/jquery.js` and the concatenated build as classic scripts; `vitest.config.mjs` builds it in memory with `concatenated()` from `build/build.js`, so it's the same as what `npm run build` writes to `dist/goldenlayout.js` from the current `build/ns.js` and `src/js` (rerun `npm run build` after adding a directory, to regenerate `build/ns.js`), and needs no build first. Watch mode (`npx vitest`) rebuilds it when a source file is edited, added or removed, or `build/build.js` or `build/ns.js` changes. The build wraps `lm` in an IIFE, so the setup exposes `window.lm` for the specs that use it. `test/test-tools.js` holds shared helpers. Note `test/xss_tests.js` — title/HTML sanitization is security-relevant; preserve escaping (`lm.utils.stripTags`) when touching titles/tabs.
+- Tests are Vitest specs in `test/*tests.js`, run in headless Chrome via Vitest browser mode (they need real layout, so not jsdom). `test/setup.js` loads `lib/jquery.js` and the concatenated build as classic scripts; `vitest.config.mjs` builds it in memory with `concatenated()` from `build/build.js`, so it's the same as what `npm run build` writes to `dist/goldenlayout.js` from the current `src/js`, and needs no build first. Watch mode (`npx vitest`) rebuilds it when a source file is edited, added or removed, or `build/build.js` changes. The build wraps `lm` in an IIFE, so the setup exposes `window.lm` for the specs that use it. `test/test-tools.js` holds shared helpers. Note `test/xss_tests.js` — title/HTML sanitization is security-relevant; preserve escaping (`lm.utils.stripTags`) when touching titles/tabs.
 
 ## Manual dev harness
 

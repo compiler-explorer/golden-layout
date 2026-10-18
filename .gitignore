@@ -3,3 +3,9 @@ typings
 .idea
 npm-debug.log
 lib/
+
+# Build output (npm run build)
+dist/
+index.html
+src/css/goldenlayout-*.css
+src/css/goldenlayout-*.css.map

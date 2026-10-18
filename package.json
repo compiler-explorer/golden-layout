@@ -24,6 +24,7 @@
   },
   "scripts": {
     "build": "node build/build.js",
+    "prepack": "npm run build",
     "test": "vitest run && npm run typecheck",
     "typecheck": "tsc -p tsconfig.json"
   },

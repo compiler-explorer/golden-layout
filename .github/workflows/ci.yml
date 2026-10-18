@@ -24,13 +24,11 @@ jobs:
       - name: Test and lint
         run: npm test
 
-      - name: Build distributable
-        run: npm run build
-
-      - name: Check the committed build output is up to date
+      - name: Check the package contents
+        # npm pack runs the build (the prepack script) first.
         run: |
-          if [ -n "$(git status --porcelain)" ]; then
-            git status --short
-            echo "The committed build output is stale: run 'npm run build' and commit the result."
-            exit 1
-          fi
+          npm pack --dry-run --json > "$RUNNER_TEMP/pack.json"
+          for file in dist/goldenlayout.js dist/goldenlayout.min.js src/css/goldenlayout-base.css index.d.ts; do
+            node -e 'process.exit(require(process.env.RUNNER_TEMP + "/pack.json")[0].files.some(f => f.path === process.argv[1]) ? 0 : 1)' "$file" ||
+              { echo "The package is missing $file"; exit 1; }
+          done
