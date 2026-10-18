@@ -29,9 +29,10 @@
  * A credited spec is killed in a valid run when:
  *   - it failed on its own check: an assertion, or a waitsFor that timed out.
  *     A thrown error only counts for the specs in the vacuous list, which have
- *     no assertion a mutation can make fail. Under Karma, a spec whose failures
- *     include a Jasmine spec timeout, an uncaught error, or a waitsFor timeout
- *     mixed with other failures doesn't count at all;
+ *     no assertion a mutation can make fail. Specs are judged by their first
+ *     failure. Under Karma, a spec whose failures include a Jasmine spec
+ *     timeout, an uncaught error, or a waitsFor timeout mixed with other
+ *     failures doesn't count at all;
  *   - in a describe whose specs share state, no earlier spec in that describe
  *     failed, so the failure isn't left over from an earlier one. Specs in
  *     independentDescribes are exempt; in a readOnlyAfterSetup describe, only
@@ -198,8 +199,10 @@ function classify( suite, messages ) {
 		if( messages.some( function( m ) { return /waitsFor timed out/.test( m ); } ) ) {
 			return messages.length === 1 ? 'wait' : 'invalid';
 		}
-		// Jasmine expectations don't stop the spec, so it may report several.
-		return messages.every( function( m ) { return /^Expected /.test( m ); } ) ? 'assertion' : 'crash';
+		// A failed Jasmine expectation doesn't stop the spec, so later entries
+		// may follow from it. Like Vitest, which stops at the first failure,
+		// judge by the first.
+		return /^Expected /.test( first ) ? 'assertion' : 'crash';
 	}
 	if( /waitsFor timed out/.test( first ) ) {
 		return 'wait';
