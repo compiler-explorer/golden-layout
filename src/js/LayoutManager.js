@@ -839,7 +839,7 @@ lm.utils.copy( lm.LayoutManager.prototype, {
 			this.emit( 'popIn' );
 		}, this ) );
 
-		document.title = lm.utils.stripTags( this.config.content[ 0 ].title );
+		document.title = this.config.content[ 0 ].title;
 
 		$( 'head' ).append( $( 'body link, body style, template, .gl_keep' ) );
 

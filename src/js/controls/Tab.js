@@ -63,16 +63,15 @@ lm.controls.Tab._template = '<li class="lm_tab"><i class="lm_left"></i>' +
 lm.utils.copy( lm.controls.Tab.prototype, {
 
 	/**
-	 * Sets the tab's title to the provided string and sets
-	 * its title attribute to a pure text representation (without
-	 * html tags) of the same string.
+	 * Sets the tab's title, and its title attribute, to the provided
+	 * string. The title is text: any markup in it is shown as-is.
 	 *
 	 * @public
-	 * @param {String} title can contain html
+	 * @param {String} title
 	 */
 	setTitle: function( title ) {
-		this.element.attr( 'title', lm.utils.stripTags( title ) );
-		this.titleElement.html( title );
+		this.element.attr( 'title', title );
+		this.titleElement.text( title );
 	},
 
 	/**
