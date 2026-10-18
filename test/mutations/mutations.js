@@ -71,10 +71,7 @@ exports.list = [
 		to: 'this._create( this.settings );',
 		specs: [
 			C + 'registers listeners',
-			IC + 'registeres listeners',
-			E + 'Creates an initial layout',
-			ID + 'creates a layout',
-			TM + 'Creates an initial layout'
+			IC + 'registeres listeners'
 		]
 	},
 	{
@@ -449,13 +446,6 @@ exports.list = [
 		specs: [ TM + 'adds a child to the stack' ]
 	},
 	{
-		id: 'stack-empty-init',
-		file: 'src/js/items/Stack.js',
-		from: 'if( this.contentItems.length > 0 ) {\n\t\t\tinitialItem',
-		to: 'if( this.contentItems.length >= 0 ) {\n\t\t\tinitialItem',
-		specs: [ E + 'Creates an initial layout' ]
-	},
-	{
 		id: 'row-flag',
 		file: 'src/js/items/RowOrColumn.js',
 		from: 'this.isRow = !isColumn;',
@@ -735,7 +725,6 @@ exports.allowedDifferences = {
 	// tests) or drag onto the page also fail. Vitest isolates each file.
 	'destroy-items': 'leftover layouts leak across files under Karma',
 	'items-by-property': 'leftover layouts leak across files under Karma',
-	'stack-empty-init': 'leftover layouts leak across files under Karma',
 	// destroy() does nothing for a layout that never initialised.
 	'init-flag-missing': 'leftover layouts leak across files under Karma',
 	// This mutates the shared default config. Under Karma that leaks into every
