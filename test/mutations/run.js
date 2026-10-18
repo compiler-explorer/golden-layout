@@ -20,20 +20,24 @@
  *
  * A run is valid evidence only if it has no unhandled errors (Vitest: from
  * the unhandled-errors-reporter.mjs reporter, which also reports errors in
- * describe-level hooks; Karma: browser errors such as afterAll errors, and
+ * describe-level hooks; Karma: browser errors, which include errors in
+ * beforeAll and afterAll hooks (karma-jasmine labels both "afterAll"), and
  * uncaught errors or unhandled rejections reported during any spec) and no
- * file-level errors, and every baseline spec reported a result. A mutation's expectLoadFailure names test files allowed to fail
- * to load: errors from them are allowed, and their specs (under Karma, the
+ * file-level errors, and every baseline spec reported a result. A mutation's
+ * expectLoadFailure names test files allowed to fail to load: errors from
+ * them are allowed, and their specs (under Karma, the
  * remaining specs from the first of them on, since Karma stops there) may be
  * missing. A missing result never counts as a failure.
  *
  * A credited spec is killed in a valid run when:
  *   - it failed on its own check: an assertion, or a waitsFor that timed out.
  *     A thrown error only counts for the specs in the vacuous list, which have
- *     no assertion a mutation can make fail. Specs are judged by their first
- *     failure. A spec that hit the test framework's own timeout (Vitest's
- *     testTimeout, Jasmine's spec timeout), or whose Karma failures mix a
- *     waitsFor timeout with others, doesn't count at all;
+ *     no assertion or wait of their own that a mutation can make fail (a
+ *     leftover listener from an earlier spec may still assert during them,
+ *     but that doesn't count). Specs are judged by their first failure. A
+ *     spec that hit the test framework's own timeout (Vitest's test or hook
+ *     timeout, Jasmine's spec timeout), or whose Karma failures mix a waitsFor
+ *     timeout with others, doesn't count at all;
  *   - in a describe whose specs share state, no earlier spec in that describe
  *     failed, so the failure isn't left over from an earlier one. Specs in
  *     independentDescribes are exempt; in a readOnlyAfterSetup describe, only
@@ -43,14 +47,16 @@
  * karmaNotRequired lists specs whose Karma result is reported but not
  * required, with the reason. Repeats must fail the same specs, and the two
  * suites must fail the same specs unless the mutation is in
- * allowedDifferences. The unmutated baseline runs --baseline-runs times
+ * allowedDifferences. Specs in karmaFlaky (known to fail intermittently under
+ * Karma) are left out of those two comparisons, but never out of judging a
+ * kill. The unmutated baseline runs --baseline-runs times
  * (default 3) in each suite.
  *
  * One browser runs at a time (Vitest, then Karma), at nice 19. src/js is
  * modified in place while a mutation runs and restored afterwards (also on
  * SIGINT, SIGTERM and SIGHUP), so the script refuses to start if src/js has
- * local changes. --out writes the full results, with failure messages, as
- * JSON. It exits non-zero if any mutation fails the check or, when running
+ * local changes. --out writes the full results as JSON: every run's failing
+ * specs with the kind and first message of each failure, and its errors. It exits non-zero if any mutation fails the check or, when running
  * everything, if an active spec isn't killed by any mutation.
  */
 'use strict';
@@ -198,8 +204,9 @@ function firstLine( message ) {
 /**
  * Why a spec failed, from its failure messages: 'assertion' (an expect
  * failed), 'wait' (a waitsFor timed out), 'crash' (the code under test threw)
- * or 'invalid' (evidence that can't be trusted: a Jasmine spec timeout, an
- * uncaught error attributed to the spec, or a wait failure mixed with others).
+ * or 'invalid' (evidence that can't be trusted: a Vitest "Test timed out" or
+ * "Hook timed out", a Jasmine spec timeout, an uncaught error attributed to
+ * the spec, or a wait failure mixed with others).
  */
 function classify( suite, messages ) {
 	var first = String( messages[ 0 ] || '' );
@@ -220,7 +227,7 @@ function classify( suite, messages ) {
 	}
 	// A spec that hit Vitest's own test timeout proves nothing, not even for
 	// a vacuous spec.
-	if( /Test timed out in /.test( first ) ) {
+	if( /(Test|Hook) timed out in /.test( first ) ) {
 		return 'invalid';
 	}
 	return /^AssertionError/.test( first ) ? 'assertion' : 'crash';
@@ -266,8 +273,6 @@ function runVitest() {
 		} catch( e ) {
 			return { suite: 'vitest', results: results, errors: errors.concat( [ { file: null, message: 'no JSON output: ' + r.output.slice( -2000 ) } ] ) };
 		}
-		// An unhandled error (e.g. thrown in an animation-frame callback) can
-		// make a spec fail for the wrong reason, so it always counts.
 		// Unhandled errors (e.g. thrown in an animation-frame callback) and
 		// errors in describe-level hooks can make specs fail for the wrong
 		// reason, so they always count against the run.
@@ -489,6 +494,9 @@ function checkBaseline( vitestRuns, karmaRuns ) {
 	mutations.independentDescribes.forEach( function( d ) {
 		if( !order.some( function( s ) { return describeOf( s ) === d; } ) ) problems.push( 'independentDescribes names an unknown describe: ' + d );
 	} );
+	Object.keys( mutations.karmaFlaky ).forEach( function( spec ) {
+		if( !( spec in reference ) ) problems.push( 'karmaFlaky names an unknown spec: ' + spec );
+	} );
 	Object.keys( mutations.allowedDifferences ).forEach( function( id ) {
 		if( !mutations.list.some( function( m ) { return m.id === id; } ) ) problems.push( 'allowedDifferences names an unknown mutation: ' + id );
 	} );
@@ -496,6 +504,15 @@ function checkBaseline( vitestRuns, karmaRuns ) {
 		throw new Error( 'Baseline check failed:\n' + problems.join( '\n' ) );
 	}
 	return order;
+}
+
+function failureDetails( run, order ) {
+	var details = {};
+	failing( run, order ).forEach( function( s ) {
+		var r = run.results[ s ];
+		details[ s ] = r ? { kind: r.kind, message: r.message } : { kind: 'missing' };
+	} );
+	return { failing: details, errors: run.errors };
 }
 
 function evaluate( m, vitestRuns, karmaRuns, order ) {
@@ -507,7 +524,17 @@ function evaluate( m, vitestRuns, karmaRuns, order ) {
 		problems: [],
 		specs: [],
 		vitestFailed: failing( vitestRuns[ 0 ], order ),
-		karmaFailed: karmaRuns.length ? failing( karmaRuns[ 0 ], order ) : null
+		karmaFailed: karmaRuns.length ? failing( karmaRuns[ 0 ], order ) : null,
+		// Every run's failing (or missing) specs, with why, for diagnosis.
+		runs: {
+			vitest: vitestRuns.map( function( r ) { return failureDetails( r, order ); } ),
+			karma: karmaRuns.map( function( r ) { return failureDetails( r, order ); } )
+		}
+	};
+	// Known Karma-flaky specs are left out when comparing failure sets (never
+	// when judging a kill).
+	var comparable = function( specs ) {
+		return specs.filter( function( s ) { return !( s in mutations.karmaFlaky ); } );
 	};
 	vitestRuns.forEach( function( r, i ) {
 		runProblems( r, order, m ).forEach( function( p ) { entry.problems.push( 'Vitest run ' + ( i + 1 ) + ': ' + p ); } );
@@ -537,15 +564,17 @@ function evaluate( m, vitestRuns, karmaRuns, order ) {
 		}
 	} );
 	karmaRuns.slice( 1 ).forEach( function( r, i ) {
-		if( JSON.stringify( failing( r, order ) ) !== JSON.stringify( entry.karmaFailed ) ) {
+		if( JSON.stringify( comparable( failing( r, order ) ) ) !== JSON.stringify( comparable( entry.karmaFailed ) ) ) {
 			entry.problems.push( 'Karma run ' + ( i + 2 ) + ' failed different specs from run 1' );
 		}
 	} );
 	if( karmaRuns.length ) {
-		entry.sameFailures = JSON.stringify( entry.vitestFailed ) === JSON.stringify( entry.karmaFailed );
+		var vitestFailed = comparable( entry.vitestFailed );
+		var karmaFailed = comparable( entry.karmaFailed );
+		entry.sameFailures = JSON.stringify( vitestFailed ) === JSON.stringify( karmaFailed );
 		if( !entry.sameFailures ) {
-			entry.karmaOnly = entry.karmaFailed.filter( function( s ) { return entry.vitestFailed.indexOf( s ) === -1; } );
-			entry.vitestOnly = entry.vitestFailed.filter( function( s ) { return entry.karmaFailed.indexOf( s ) === -1; } );
+			entry.karmaOnly = karmaFailed.filter( function( s ) { return vitestFailed.indexOf( s ) === -1; } );
+			entry.vitestOnly = vitestFailed.filter( function( s ) { return karmaFailed.indexOf( s ) === -1; } );
 			if( !mutations.allowedDifferences[ m.id ] ) {
 				entry.problems.push( 'Karma and Vitest fail different specs (Karma only: ' + entry.karmaOnly.length +
 					', Vitest only: ' + entry.vitestOnly.length + ') and the mutation is not in allowedDifferences' );

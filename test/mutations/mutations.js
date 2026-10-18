@@ -667,11 +667,15 @@ exports.list = [
 ];
 
 /*
- * Vacuous specs: they have no assertion that any mutation can make fail. Most
- * have no assertions at all and only check that a step doesn't throw;
- * item-creation-events' "registeres listeners" asserts that fresh spies
- * haven't been called before it attaches them, which nothing can break. They are ported as-is and listed in
- * the PR for discussion. For these specs alone, a thrown error counts as a kill.
+ * Vacuous specs: they have no assertion or wait of their own that a mutation
+ * can make fail. Most have no assertions at all and only check that a step
+ * doesn't throw; item-creation-events' "registeres listeners" asserts that
+ * fresh spies haven't been called before it attaches them, which nothing can
+ * break. A listener left by an earlier spec may still assert during one of
+ * them (event-bubble-tests.js's listeners fire during destroy), but that
+ * assertion belongs to the earlier spec. They are ported as-is and listed in
+ * the PR for discussion. For these specs alone, a thrown error counts as a
+ * kill.
  * (Specs that only create a layout with testTools.createLayout aren't here:
  * its queued wait for the layout to initialise is a check that can fail.)
  */
@@ -733,13 +737,27 @@ exports.allowedDifferences = {
 	'items-by-property': 'leftover layouts leak across files under Karma',
 	// Jasmine carries on after the failed expectation in "registers
 	// listeners", so under Karma that spec goes on to call init() a second
-	// time, and "has called listeners" then sees two show events.
+	// time, and "has called listeners" then sees two show events. (Its other
+	// intermittent Karma-only failure is in karmaFlaky.)
 	'register-component-inits': 'Jasmine continues after a failed expectation and re-initialises',
 	// destroy() does nothing for a layout that never initialised.
 	'init-flag-missing': 'leftover layouts leak across files under Karma',
 	// This mutates the shared default config. Under Karma that leaks into every
 	// later file in the page; Vitest isolates each file.
 	'create-config-copies': 'mutated default config leaks across files under Karma',
-	// Karma only sometimes catches this one (see the mutation).
-	'container-state-event': 'timing-dependent under Karma'
+};
+
+/*
+ * Specs known to fail intermittently under Karma only. They are left out when
+ * comparing failure sets (between repeats, and between the suites), never
+ * when judging whether a mutation kills a spec.
+ */
+exports.karmaFlaky = {
+	// Under Karma, whether the throttled stateChanged that creating a layout
+	// schedules arrives after this spec has attached its listener depends on
+	// timing. So it sometimes passes when it
+	// should fail (container-state-event), and sometimes fails when it should
+	// pass (register-component-inits, about 1 in 3 runs). test/setup.js
+	// drains a frame between specs, so Vitest is deterministic here.
+	[ S + 'emits stateChanged when a component updates its state' ]: 'stateChanged timing leak between specs under Karma'
 };
