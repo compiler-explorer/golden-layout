@@ -26,13 +26,12 @@ The tests use [Vitest browser mode](https://vitest.dev/guide/browser/) with Play
 
 ## Releasing a new version (CE admins)
 
+Releases are made by [Release Please](https://github.com/googleapis/release-please) from the PR titles merged to `ce-main`.
+
 1. **Agree the change with the other CE admins first.** Every release goes straight to npm, and from there into Compiler Explorer.
-2. In the PR making the change, bump `version` in `package.json` and `package-lock.json` (`npm version <x.y.z> --no-git-tag-version`).
-3. Once it's merged to `ce-main`, publish a GitHub release tagged `v<x.y.z>`:
-   ```bash
-   gh release create v<x.y.z> -R compiler-explorer/golden-layout --target ce-main --generate-notes
-   ```
-4. The [publish workflow](.github/workflows/publish.yml) then publishes to npm through Trusted Publishing, with provenance; no npm token is involved. It builds the package, and refuses to publish if the tag doesn't match `package.json` or the package is missing its built files.
+2. Give the PR a [conventional commit](https://www.conventionalcommits.org/) title, which CI checks: `fix: ...` for a patch release, `feat: ...` for a minor one, or `chore:`, `docs:`, `ci:`, `build:`, `test:` or `refactor:` for no release. Squash-merge it, so the title becomes the commit message.
+3. Release Please then opens (or updates) a release PR that bumps the version in `package.json` and `package-lock.json` and adds the changes to `CHANGELOG.md`. Merge it when you want to release.
+4. Merging the release PR tags `v<x.y.z>`, creates the GitHub release, and the [release workflow](.github/workflows/publish.yml) publishes to npm through Trusted Publishing, with provenance; no npm token is involved. It refuses to publish if the package is missing its built files.
 5. Update Compiler Explorer's `package.json` and `package-lock.json` to the new version in a CE PR.
 
 ## License
