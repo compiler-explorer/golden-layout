@@ -15,6 +15,8 @@ Compiler Explorer's fork of [Golden Layout](https://golden-layout.com/) 1.5.x â€
 
 The build is plain Node with no task runner: `less` for the themes, `uglify-js` for the minified file and `handlebars` for `index.html`; everything else is `fs`.
 
+PR titles must be conventional commits (`fix:`, `feat:`, `chore:`, ...; checked by `.github/workflows/pr-title.yml`): PRs are squash-merged, and Release Please builds releases and `CHANGELOG.md` from those titles. Don't bump `version` by hand; see "Releasing" in the README.
+
 Many specs share state across the `it` blocks of a `describe` and rely on running in order, so `vitest.config.mjs` turns off shuffling and Vitest's default `clearMocks` (spies keep their calls across `it` blocks). Specs that wait for something are `async` and use `testTools.waitsFor`.
 
 ## Build model (important)

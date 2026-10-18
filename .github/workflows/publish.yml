@@ -1,16 +1,39 @@
-name: Publish to npm
+# Releases with Release Please. Each push to ce-main updates a release PR that
+# bumps the version and changelog from the conventional-commit titles merged
+# since the last release. Merging that PR tags the release, and the publish
+# job below then publishes it to npm.
+#
+# npm's Trusted Publisher for this package names this file (publish.yml), so
+# keep the publish job here, under this name.
+name: Release
 
 on:
-  release:
-    types: [published]
+  push:
+    branches: [ ce-main ]
+  workflow_dispatch:
 
-permissions:
-  contents: read
-  id-token: write # OIDC token for npm Trusted Publishing
+permissions: {}
 
 jobs:
-  publish:
+  release-please:
     runs-on: ubuntu-24.04
+    permissions:
+      contents: write # tags and GitHub releases
+      pull-requests: write # the release PR
+      issues: write # release-please labels its PRs
+    outputs:
+      release_created: ${{ steps.release.outputs.release_created }}
+    steps:
+      - uses: googleapis/release-please-action@v5
+        id: release
+
+  publish:
+    needs: release-please
+    if: ${{ needs.release-please.outputs.release_created }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      id-token: write # OIDC token for npm Trusted Publishing
     steps:
       - uses: actions/checkout@v4
 
@@ -18,16 +41,6 @@ jobs:
         with:
           node-version: '24'
           registry-url: 'https://registry.npmjs.org'
-
-      - name: Check the release tag matches package.json
-        env:
-          TAG: ${{ github.event.release.tag_name }}
-        run: |
-          version=$(node -p 'require("./package.json").version')
-          if [ "${TAG#v}" != "$version" ]; then
-            echo "Release tag $TAG does not match package.json version $version"
-            exit 1
-          fi
 
       - name: Install dependencies
         run: npm ci
