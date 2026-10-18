@@ -18,8 +18,10 @@ Compiler Explorer installs it through an npm alias, so code and CSS still refer 
 npm ci
 npm install -g grunt-cli
 grunt dist   # rebuild dist/ and src/css from the sources
-npm test     # Karma tests in headless Chrome, plus a type-check of index.d.ts
+npm test     # Vitest tests in headless Chrome, plus a type-check of index.d.ts
 ```
+
+The tests use [Vitest browser mode](https://vitest.dev/guide/browser/) with Playwright driving the system Chrome, so Chrome must be installed. They load jQuery and the concatenated build, made in memory from `build/ns.js` and the sources exactly as `grunt concat` (part of `grunt dist`) makes `dist/goldenlayout.js`. Run one file with `npx vitest run test/title-tests.js`, or filter by name with `-t`.
 
 `dist/` and `src/css` are committed and published as they are, so commit the output of `grunt dist` with any source change. CI fails if they're out of date. See [`CLAUDE.md`](CLAUDE.md) for how the build fits together.
 

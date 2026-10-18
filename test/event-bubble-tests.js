@@ -1,3 +1,6 @@
+import { describe, it, expect } from 'vitest';
+import { testTools } from './test-tools.js';
+
 describe( 'content items are abled to to emit events that bubble up the tree', function(){
 
 	var layout;
@@ -22,66 +25,62 @@ describe( 'content items are abled to to emit events that bubble up the tree', f
 		testTools.verifyPath( 'stack.1.row', layout, expect );
 	});
 
-	it( 'emits bubbling events', function(){
+	it( 'emits bubbling events', async function(){
 		var invocations = [],
 			eventName = 'eventA',
 			hasReachedLayout = false;
 
-		runs(function(){
-			layout.root
-				.contentItems[ 0 ]
-				.contentItems[ 0 ]
-				.contentItems[ 0 ]
-				.contentItems[ 0 ]
-				.on( eventName, function(){
-					invocations.push( 'component' );
-				});
-		
-			layout.root
-				.contentItems[ 0 ]
-				.contentItems[ 0 ]
-				.contentItems[ 0 ]
-				.on( eventName, function(){ invocations.push( 'stackBottom' ); });
-
-			layout.root
-				.contentItems[ 0 ]
-				.contentItems[ 0 ]
-				.on( eventName, function(){ invocations.push( 'column' ); });
-
-			layout.root
-				.contentItems[ 0 ]
-				.on( eventName, function(){ invocations.push( 'stackTop' ); });
-
-			layout.root.on( eventName, function( event ){
-				invocations.push( 'root' );
-				expect( event.origin.type ).toBe( 'component' );
+		layout.root
+			.contentItems[ 0 ]
+			.contentItems[ 0 ]
+			.contentItems[ 0 ]
+			.contentItems[ 0 ]
+			.on( eventName, function(){
+				invocations.push( 'component' );
 			});
+	
+		layout.root
+			.contentItems[ 0 ]
+			.contentItems[ 0 ]
+			.contentItems[ 0 ]
+			.on( eventName, function(){ invocations.push( 'stackBottom' ); });
 
-			layout.on( eventName, function(){
-				hasReachedLayout = true;
-				invocations.push( 'layout' );
-			});
+		layout.root
+			.contentItems[ 0 ]
+			.contentItems[ 0 ]
+			.on( eventName, function(){ invocations.push( 'column' ); });
 
-			layout.root.getItemsByType( 'row' )[ 0 ].on( eventName, function(){
-				expect( 'this' ).toBe( 'never called' );
-			});
+		layout.root
+			.contentItems[ 0 ]
+			.on( eventName, function(){ invocations.push( 'stackTop' ); });
 
-			layout.root.getItemsByType( 'component' )[ 0 ].emitBubblingEvent( eventName );
+		layout.root.on( eventName, function( event ){
+			invocations.push( 'root' );
+			expect( event.origin.type ).toBe( 'component' );
 		});
 
-		waitsFor(function(){
+		layout.on( eventName, function(){
+			hasReachedLayout = true;
+			invocations.push( 'layout' );
+		});
+
+		layout.root.getItemsByType( 'row' )[ 0 ].on( eventName, function(){
+			expect( 'this' ).toBe( 'never called' );
+		});
+
+		layout.root.getItemsByType( 'component' )[ 0 ].emitBubblingEvent( eventName );
+
+		await testTools.waitsFor(function(){
 			return hasReachedLayout;
 		});
 
-		runs(function(){
-			expect( invocations.length ).toBe( 6 );
-			expect( invocations[ 0 ] ).toBe( 'component' );
-			expect( invocations[ 1 ] ).toBe( 'stackBottom' );
-			expect( invocations[ 2 ] ).toBe( 'column' );
-			expect( invocations[ 3 ] ).toBe( 'stackTop' );
-			expect( invocations[ 4 ] ).toBe( 'root' );
-			expect( invocations[ 5 ] ).toBe( 'layout' );
-		});
+		expect( invocations.length ).toBe( 6 );
+		expect( invocations[ 0 ] ).toBe( 'component' );
+		expect( invocations[ 1 ] ).toBe( 'stackBottom' );
+		expect( invocations[ 2 ] ).toBe( 'column' );
+		expect( invocations[ 3 ] ).toBe( 'stackTop' );
+		expect( invocations[ 4 ] ).toBe( 'root' );
+		expect( invocations[ 5 ] ).toBe( 'layout' );
 	});
 
 	it( 'stops propagation', function(){

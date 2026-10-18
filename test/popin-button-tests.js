@@ -1,3 +1,5 @@
+import { describe, it, expect } from 'vitest';
+
 describe( 'the pop-in button does not allow HTML injection via its label', function(){
 	var lm = window.GoldenLayout.__lm;
 

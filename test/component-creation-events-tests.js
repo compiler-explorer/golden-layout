@@ -1,9 +1,11 @@
+import { describe, it, expect, vi } from 'vitest';
+
 describe( 'emits events when components are created', function() {
 
-	var layout, eventListener = window.jasmine.createSpyObj( 'eventListener', [
-		'show',
-		'shown'
-	] );
+	var layout, eventListener = {
+		show: vi.fn(),
+		shown: vi.fn()
+	};
 
 	it( 'creates a layout', function() {
 		layout = new window.GoldenLayout( {
@@ -36,8 +38,8 @@ describe( 'emits events when components are created', function() {
 	} );
 
 	it( 'has called listeners', function() {
-		expect( eventListener.show.calls.length ).toBe( 1 );
-		expect( eventListener.shown.calls.length ).toBe( 1 );
+		expect( eventListener.show.mock.calls.length ).toBe( 1 );
+		expect( eventListener.shown.mock.calls.length ).toBe( 1 );
 	} );
 
 	it( 'destroys the layout', function() {

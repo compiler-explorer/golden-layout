@@ -13,23 +13,21 @@ The build is driven by Grunt (needs `grunt-cli` installed globally: `npm install
 - `grunt dist` — full build: regenerates the namespace + index, compiles LESS themes, and concatenates `dist/goldenlayout.js` and `dist/goldenlayout.min.js`. Run this to produce distributable output.
 - `grunt build` — only the codegen step (`build/task.js`): walks `src/js`, regenerates `build/ns.js` and `index.html` (from `index.hbs`).
 - `grunt less` — compile `src/less/*.less` themes into `src/css/*.css`.
-- `grunt watch` (the default task) — rebuild and re-test on changes to `src/**` / `test/**`, with livereload.
-- `npm test` — runs `grunt test` (Karma single-run under headless Chrome) then `npm run typecheck`. Needs Chrome/Chromium on `PATH` (or `CHROME_BIN` set); the `ChromeHeadlessNoSandbox` launcher in `karma.conf.js` runs with `--no-sandbox` for CI/root.
-- `grunt karma:unit` — local Karma runner (Chrome, watch mode, `singleRun: false`).
+- `grunt watch` (the default task) — rebuild on changes to `src/**`, with livereload.
+- `npm test` — runs the Vitest suite once (browser mode, headless Chrome) then `npm run typecheck`. Playwright drives the system Chrome (`channel: 'chrome'` in `vitest.config.mjs`), so Chrome must be installed; Playwright's own browsers are not used.
+- `npx vitest` — the same suite in watch mode. `npx vitest run test/title-tests.js` runs one file; `-t '<name>'` filters by spec name.
 - `npm run typecheck` — type-checks `index.d.ts` with `tsc` (strict, no emit); config in `tsconfig.json`.
-
-There is no single-test runner flag; narrow a Karma run by temporarily editing the `files` globs in `karma.conf.js`, or `fdescribe`/`fit` in the relevant `test/*.js` spec.
 
 The dist pipeline uses native grunt plugins: `grunt-contrib-concat` (wraps the concatenated sources in the `(function($){…})(window.$)` IIFE via its banner/footer) then `grunt-contrib-uglify` for the `.min.js`. The old gulp/`grunt-gulp` pipeline (and the long-deprecated `gulpfile.js`) were removed — they pinned `gulp@3`, which is incompatible with modern Node.
 
-The specs were written for Jasmine 1.x (legacy `runs`/`waits`/`waitsFor` + `spy.calls.length`/`spy.mostRecentCall`). `test/jasmine-compat.js` shims that API onto Jasmine 2+ and must load before the spec files (it's listed first in `karma.conf.js`). Jasmine randomisation is disabled (`client.jasmine.random = false`) because specs share state across `it` blocks.
+Many specs share state across the `it` blocks of a `describe` and rely on running in order, so `vitest.config.mjs` turns off shuffling and Vitest's default `clearMocks` (spies keep their calls across `it` blocks). Specs that wait for something are `async` and use `testTools.waitsFor`.
 
 ## Build model (important)
 
 The shipped file is produced by **plain concatenation, not a module bundler**. There is no `require`/`import` between source files — everything hangs off a single global `lm` namespace object.
 
 - `build/ns.js` declares `var lm = {config, container, controls, errors, items, utils}` and is the **first** file concatenated. It is generated from the `src/js` directory tree by `grunt build`, so adding a new subdirectory under `src/js` requires regenerating it.
-- Concatenation order (from `Gruntfile.js` / `karma.conf.js`): `build/ns.js`, then `utils/utils.js`, `utils/EventEmitter.js`, `utils/DragListener.js`, then the rest of `src/js/**/*.js`. These are loaded early because other files reference them at definition time. (grunt's globbing dedupes the explicitly-listed utils against the trailing glob, preserving first-occurrence order.)
+- Concatenation order (from `Gruntfile.js`): `build/ns.js`, then `utils/utils.js`, `utils/EventEmitter.js`, `utils/DragListener.js`, then the rest of `src/js/**/*.js`. These are loaded early because other files reference them at definition time. (grunt's globbing dedupes the explicitly-listed utils against the trailing glob, preserving first-occurrence order.)
 - The concatenated result is wrapped in `(function($){ ... })(window.$)`, which is how `$` is in scope everywhere without an explicit import.
 
 Consequence: when adding a file, place classes on the correct `lm.<namespace>.<Name>` slot, and remember that anything referenced at load time (not just call time) must be concatenated earlier.
@@ -50,7 +48,7 @@ State persistence: layouts serialize to/from a config object (`toConfig()` / con
 ## Types and tests
 
 - `index.d.ts` is the hand-maintained TypeScript declaration for the public API. Keep it in sync when changing public methods/signatures; it is what `npm run typecheck` checks.
-- Tests are Jasmine specs in `test/*.js`, run in a real/headless browser via Karma (they need jQuery + the concatenated source, see `karma.conf.js` file list). `test/test-tools.js` holds shared helpers. Note `test/xss_tests.js` — title/HTML sanitization is security-relevant; preserve escaping (`lm.utils.stripTags`) when touching titles/tabs.
+- Tests are Vitest specs in `test/*tests.js`, run in headless Chrome via Vitest browser mode (they need real layout, so not jsdom). `test/setup.js` loads `lib/jquery.js` and the concatenated build as classic scripts; `vitest.config.mjs` builds it in memory from the `concat` settings in `Gruntfile.js`, so it's the same as what `grunt concat` writes to `dist/goldenlayout.js` from the current `build/ns.js` and `src/js` (regenerate `build/ns.js` with `grunt build` after adding a directory), and needs no `grunt dist` first. Watch mode (`npx vitest`) rebuilds it when a source file is edited, added or removed, or `Gruntfile.js` or `build/ns.js` changes. The build wraps `lm` in an IIFE, so the setup exposes `window.lm` for the specs that use it. `test/test-tools.js` holds shared helpers. Note `test/xss_tests.js` — title/HTML sanitization is security-relevant; preserve escaping (`lm.utils.stripTags`) when touching titles/tabs.
 
 ## Manual dev harness
 

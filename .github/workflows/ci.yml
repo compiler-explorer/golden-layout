@@ -7,11 +7,9 @@ on:
 
 jobs:
   build-and-test:
+    # The tests drive the runner's preinstalled Chrome through Playwright
+    # (channel 'chrome' in vitest.config.mjs), so no browser download is needed.
     runs-on: ubuntu-latest
-    env:
-      # Karma's ChromeHeadlessNoSandbox launcher uses this; Chrome is
-      # preinstalled on the ubuntu-latest runner.
-      CHROME_BIN: /usr/bin/google-chrome-stable
     steps:
       - uses: actions/checkout@v4
 

@@ -1,3 +1,5 @@
+import { describe, it, expect } from 'vitest';
+
 describe( 'Basic XSS filtering is applied', function(){
 	var filterFn = window.GoldenLayout.__lm.utils.filterXss;
 

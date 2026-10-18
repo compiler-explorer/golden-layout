@@ -1,34 +1,33 @@
+import { describe, it, expect } from 'vitest';
+import { testTools } from './test-tools.js';
+
 describe( 'Sets and retrieves a component\'s state', function() {
 
 	var myLayout, myComponent;
 
-	it( 'Can create a most basic layout', function() {
-		runs(function(){
-			myLayout = new window.GoldenLayout({
-				content: [{
-					type: 'component',
-					componentName: 'testComponent',
-					componentState: { testValue: 'initial' }
-				}]
-			});
-
-
-			myLayout.registerComponent( 'testComponent', function( container, state ){
-				this.container = container;
-				this.state = state;
-				myComponent = this;
-			});
-
-			myLayout.init();
+	it( 'Can create a most basic layout', async function() {
+		myLayout = new window.GoldenLayout({
+			content: [{
+				type: 'component',
+				componentName: 'testComponent',
+				componentState: { testValue: 'initial' }
+			}]
 		});
+
+
+		myLayout.registerComponent( 'testComponent', function( container, state ){
+			this.container = container;
+			this.state = state;
+			myComponent = this;
+		});
+
+		myLayout.init();
 		
-		waitsFor(function(){
+		await testTools.waitsFor(function(){
 			return myLayout.isInitialised;
 		});
 
-		runs(function(){
-			expect( myComponent.state.testValue ).toBe( 'initial' );
-		});
+		expect( myComponent.state.testValue ).toBe( 'initial' );
 	});
 
 	it( 'returns the initial state', function(){
@@ -36,24 +35,20 @@ describe( 'Sets and retrieves a component\'s state', function() {
 		expect( config.content[ 0 ].content[ 0 ].componentState.testValue ).toBe( 'initial' );
 	});
 
-	it( 'emits stateChanged when a component updates its state', function(){
+	it( 'emits stateChanged when a component updates its state', async function(){
 		var stateChanges = 0;
 
 		myLayout.on( 'stateChanged', function(){
 			stateChanges++;
 		});
 
-		runs(function(){
-			myComponent.container.setState({ testValue: 'updated' });
-		});
+		myComponent.container.setState({ testValue: 'updated' });
 
-		waitsFor(function(){
+		await testTools.waitsFor(function(){
 			return stateChanges !== 0;
 		});
 
-		runs(function(){
-			expect( stateChanges ).toBe( 1 );
-		});
+		expect( stateChanges ).toBe( 1 );
 	});
 
 	it( 'returns the updated state', function(){

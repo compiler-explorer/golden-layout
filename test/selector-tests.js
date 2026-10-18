@@ -1,3 +1,6 @@
+import { describe, it, expect } from 'vitest';
+import { testTools } from './test-tools.js';
+
 describe( 'it is possible to select elements from the tree using selectors', function(){
 
 	var layout;

@@ -1,3 +1,5 @@
+import { describe, it, expect } from 'vitest';
+
 describe( 'HeaderButton does not allow HTML injection via its label or cssClass', function(){
 	var lm = window.GoldenLayout.__lm;
 
