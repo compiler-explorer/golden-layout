@@ -47,9 +47,13 @@
  * karmaNotRequired lists specs whose Karma result is reported but not
  * required, with the reason. Repeats must fail the same specs, and the two
  * suites must fail the same specs unless the mutation is in
- * allowedDifferences. Specs in karmaFlaky (known to fail intermittently under
- * Karma) are left out of those two comparisons, but never out of judging a
- * kill. The unmutated baseline runs --baseline-runs times
+ * allowedDifferences. karmaFlaky lists known Karma flakes: a spec, the
+ * mutations under which it flakes, and the direction ('extra': Karma may fail
+ * it when Vitest doesn't; 'missing': Karma may pass it when Vitest fails it).
+ * Only that difference in Karma's result, under those mutations, is ignored,
+ * in the Karma-vs-Vitest and Karma-repeat comparisons; never when judging a
+ * kill, and never on the Vitest side. Each one ignored is printed and
+ * recorded in --out. The unmutated baseline runs --baseline-runs times
  * (default 3) in each suite.
  *
  * One browser runs at a time (Vitest, then Karma), at nice 19. src/js is
@@ -496,6 +500,11 @@ function checkBaseline( vitestRuns, karmaRuns ) {
 	} );
 	Object.keys( mutations.karmaFlaky ).forEach( function( spec ) {
 		if( !( spec in reference ) ) problems.push( 'karmaFlaky names an unknown spec: ' + spec );
+		Object.keys( mutations.karmaFlaky[ spec ].mutations ).forEach( function( id ) {
+			var direction = mutations.karmaFlaky[ spec ].mutations[ id ];
+			if( !mutations.list.some( function( m ) { return m.id === id; } ) ) problems.push( 'karmaFlaky names an unknown mutation: ' + id );
+			if( direction !== 'extra' && direction !== 'missing' ) problems.push( 'karmaFlaky direction must be extra or missing: ' + id );
+		} );
 	} );
 	Object.keys( mutations.allowedDifferences ).forEach( function( id ) {
 		if( !mutations.list.some( function( m ) { return m.id === id; } ) ) problems.push( 'allowedDifferences names an unknown mutation: ' + id );
@@ -531,11 +540,16 @@ function evaluate( m, vitestRuns, karmaRuns, order ) {
 			karma: karmaRuns.map( function( r ) { return failureDetails( r, order ); } )
 		}
 	};
-	// Known Karma-flaky specs are left out when comparing failure sets (never
-	// when judging a kill).
-	var comparable = function( specs ) {
-		return specs.filter( function( s ) { return !( s in mutations.karmaFlaky ); } );
-	};
+	// Known Karma flakes for this mutation: spec -> 'extra' (Karma may fail it
+	// when Vitest doesn't) or 'missing' (Karma may pass it when Vitest fails
+	// it). Only that difference in Karma's result is ignored, and only when
+	// comparing failure sets; never when judging a kill, and never for Vitest.
+	var flakes = {};
+	Object.keys( mutations.karmaFlaky ).forEach( function( spec ) {
+		var direction = mutations.karmaFlaky[ spec ].mutations[ m.id ];
+		if( direction ) flakes[ spec ] = direction;
+	} );
+	entry.ignoredKarmaFlakes = [];
 	vitestRuns.forEach( function( r, i ) {
 		runProblems( r, order, m ).forEach( function( p ) { entry.problems.push( 'Vitest run ' + ( i + 1 ) + ': ' + p ); } );
 	} );
@@ -563,14 +577,30 @@ function evaluate( m, vitestRuns, karmaRuns, order ) {
 			entry.problems.push( 'Vitest run ' + ( i + 2 ) + ' failed different specs from run 1' );
 		}
 	} );
-	karmaRuns.slice( 1 ).forEach( function( r, i ) {
-		if( JSON.stringify( comparable( failing( r, order ) ) ) !== JSON.stringify( comparable( entry.karmaFailed ) ) ) {
+	// Karma's result for a flaky spec, adjusted to Vitest's if it differs in
+	// the known direction (and recorded).
+	var adjustKarma = function( karmaFailed, which ) {
+		return order.filter( function( s ) {
+			var karma = karmaFailed.indexOf( s ) !== -1;
+			var vitest = entry.vitestFailed.indexOf( s ) !== -1;
+			if( karma !== vitest && ( flakes[ s ] === 'extra' && karma || flakes[ s ] === 'missing' && vitest ) ) {
+				entry.ignoredKarmaFlakes.push( { run: which, spec: s, karma: karma ? 'failed' : 'passed', vitest: vitest ? 'failed' : 'passed', reason: mutations.karmaFlaky[ s ].reason } );
+				return vitest;
+			}
+			return karma;
+		} );
+	};
+	var karmaAdjusted = karmaRuns.map( function( r, i ) {
+		return adjustKarma( failing( r, order ), 'Karma run ' + ( i + 1 ) );
+	} );
+	karmaAdjusted.slice( 1 ).forEach( function( failed, i ) {
+		if( JSON.stringify( failed ) !== JSON.stringify( karmaAdjusted[ 0 ] ) ) {
 			entry.problems.push( 'Karma run ' + ( i + 2 ) + ' failed different specs from run 1' );
 		}
 	} );
 	if( karmaRuns.length ) {
-		var vitestFailed = comparable( entry.vitestFailed );
-		var karmaFailed = comparable( entry.karmaFailed );
+		var vitestFailed = entry.vitestFailed;
+		var karmaFailed = karmaAdjusted[ 0 ];
 		entry.sameFailures = JSON.stringify( vitestFailed ) === JSON.stringify( karmaFailed );
 		if( !entry.sameFailures ) {
 			entry.karmaOnly = karmaFailed.filter( function( s ) { return vitestFailed.indexOf( s ) === -1; } );
@@ -634,9 +664,13 @@ function main() {
 			} ).then( function() {
 				var entry = evaluate( m, vitestRuns, karmaRuns, order );
 				report.mutations.push( entry );
+				var flakeNote = entry.ignoredKarmaFlakes.length ? ' after ignoring ' + entry.ignoredKarmaFlakes.length + ' known Karma flake(s)' : '';
 				console.log( ( entry.ok ? 'OK    ' : 'FAILED' ) + ' ' + m.id + ' (Vitest fails ' + entry.vitestFailed.length +
-					( karmaRuns.length ? ', Karma fails ' + entry.karmaFailed.length + ( entry.sameFailures ? ', same specs' : ', different specs' +
-						( mutations.allowedDifferences[ m.id ] ? ' (allowed)' : '' ) ) : '' ) + ')' );
+					( karmaRuns.length ? ', Karma run 1 fails ' + entry.karmaFailed.length + ( entry.sameFailures ? ', same specs' : ', different specs' ) + flakeNote +
+						( !entry.sameFailures && mutations.allowedDifferences[ m.id ] ? ' (allowed)' : '' ) : '' ) + ')' );
+				entry.ignoredKarmaFlakes.forEach( function( f ) {
+					console.log( '    ignored known Karma flake in ' + f.run + ': ' + f.spec + ' (Karma ' + f.karma + ', Vitest ' + f.vitest + '): ' + f.reason );
+				} );
 				entry.specs.forEach( function( s ) {
 					console.log( '    ' + ( s.killed ? 'killed ' : 'ALIVE  ' ) + s.spec );
 					s.vitest.concat( s.karma ).forEach( function( j, i ) {

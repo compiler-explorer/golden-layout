@@ -737,8 +737,8 @@ exports.allowedDifferences = {
 	'items-by-property': 'leftover layouts leak across files under Karma',
 	// Jasmine carries on after the failed expectation in "registers
 	// listeners", so under Karma that spec goes on to call init() a second
-	// time, and "has called listeners" then sees two show events. (Its other
-	// intermittent Karma-only failure is in karmaFlaky.)
+	// time, and "has called listeners" then sees two show events. (Its other,
+	// intermittent, Karma-only failure is in karmaFlaky.)
 	'register-component-inits': 'Jasmine continues after a failed expectation and re-initialises',
 	// destroy() does nothing for a layout that never initialised.
 	'init-flag-missing': 'leftover layouts leak across files under Karma',
@@ -748,16 +748,27 @@ exports.allowedDifferences = {
 };
 
 /*
- * Specs known to fail intermittently under Karma only. They are left out when
- * comparing failure sets (between repeats, and between the suites), never
- * when judging whether a mutation kills a spec.
+ * Known Karma flakes: for each spec, the mutations under which its Karma
+ * result is unreliable, and in which direction ('extra': Karma may fail it
+ * when Vitest doesn't; 'missing': Karma may pass it when Vitest fails it).
+ * Only that difference is ignored, and only when comparing failure sets
+ * (Karma against Vitest, and between Karma repeats); never when judging a
+ * kill, and never on the Vitest side.
  */
 exports.karmaFlaky = {
 	// Under Karma, whether the throttled stateChanged that creating a layout
 	// schedules arrives after this spec has attached its listener depends on
-	// timing. So it sometimes passes when it
-	// should fail (container-state-event), and sometimes fails when it should
-	// pass (register-component-inits, about 1 in 3 runs). test/setup.js
-	// drains a frame between specs, so Vitest is deterministic here.
-	[ S + 'emits stateChanged when a component updates its state' ]: 'stateChanged timing leak between specs under Karma'
+	// timing. test/setup.js drains a frame between specs, so Vitest is
+	// deterministic here.
+	[ S + 'emits stateChanged when a component updates its state' ]: {
+		mutations: {
+			// Karma often fails it although it should pass: 4 of 6 runs in two
+			// --karma-repeat 3 checks, 2 of 2 in a reviewer's.
+			'register-component-inits': 'extra',
+			// Karma often passes it although it should fail: Karma caught
+			// the mutation in only 6 of 19 runs.
+			'container-state-event': 'missing'
+		},
+		reason: 'stateChanged timing leak between specs under Karma'
+	}
 };
