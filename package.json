@@ -6,16 +6,12 @@
   "devDependencies": {
     "@types/jquery": "^3.5.30",
     "@vitest/browser-playwright": "^5.0.3",
-    "grunt": "^1.6.2",
-    "grunt-contrib-concat": "^2.1.0",
-    "grunt-contrib-less": "^3.0.0",
-    "grunt-contrib-uglify": "^5.2.2",
-    "grunt-contrib-watch": "^1.1.0",
     "handlebars": "^4.7.9",
+    "less": "^4.9.1",
     "playwright": "^1.63.0",
     "typescript": "^6.0.3",
-    "vitest": "^5.0.3",
-    "walker": "1.0.6"
+    "uglify-js": "^3.19.3",
+    "vitest": "^5.0.3"
   },
   "description": "A multi-screen javascript Layout manager \r https://golden-layout.com",
   "main": "./dist/goldenlayout.js",
@@ -27,6 +23,7 @@
     "jquery": "*"
   },
   "scripts": {
+    "build": "node build/build.js",
     "test": "vitest run && npm run typecheck",
     "typecheck": "tsc -p tsconfig.json"
   },
