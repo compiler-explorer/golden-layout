@@ -16,19 +16,18 @@ Compiler Explorer installs it through an npm alias, so code and CSS still refer 
 
 ```bash
 npm ci
-npm install -g grunt-cli
-grunt dist   # rebuild dist/ and src/css from the sources
-npm test     # Vitest tests in headless Chrome, plus a type-check of index.d.ts
+npm run build  # rebuild dist/ and src/css from the sources
+npm test       # Vitest tests in headless Chrome, plus a type-check of index.d.ts
 ```
 
-The tests use [Vitest browser mode](https://vitest.dev/guide/browser/) with Playwright driving the system Chrome, so Chrome must be installed. They load jQuery and the concatenated build, made in memory from `build/ns.js` and the sources exactly as `grunt concat` (part of `grunt dist`) makes `dist/goldenlayout.js`. Run one file with `npx vitest run test/title-tests.js`, or filter by name with `-t`.
+The tests use [Vitest browser mode](https://vitest.dev/guide/browser/) with Playwright driving the system Chrome, so Chrome must be installed. They load jQuery and the concatenated build, made in memory from `build/ns.js` and the sources exactly as `npm run build` makes `dist/goldenlayout.js`. Run one file with `npx vitest run test/title-tests.js`, or filter by name with `-t`.
 
-`dist/` and `src/css` are committed and published as they are, so commit the output of `grunt dist` with any source change. CI fails if they're out of date. See [`CLAUDE.md`](CLAUDE.md) for how the build fits together.
+`dist/` and `src/css` are committed and published as they are, so commit the output of `npm run build` with any source change. CI fails if they're out of date. See [`CLAUDE.md`](CLAUDE.md) for how the build fits together.
 
 ## Releasing a new version (CE admins)
 
 1. **Agree the change with the other CE admins first.** Every release goes straight to npm, and from there into Compiler Explorer.
-2. In the PR making the change, run `grunt dist`, and bump `version` in `package.json` and `package-lock.json` (`npm version <x.y.z> --no-git-tag-version`).
+2. In the PR making the change, run `npm run build`, and bump `version` in `package.json` and `package-lock.json` (`npm version <x.y.z> --no-git-tag-version`).
 3. Once it's merged to `ce-main`, publish a GitHub release tagged `v<x.y.z>`:
    ```bash
    gh release create v<x.y.z> -R compiler-explorer/golden-layout --target ce-main --generate-notes
