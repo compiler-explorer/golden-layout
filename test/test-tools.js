@@ -4,14 +4,17 @@ export var testTools = {};
 
 /**
  * Polls until predicate() is truthy, failing after `timeout` ms. This is the
- * Jasmine 1.x waitsFor(): a throwing predicate counts as "not yet".
+ * Jasmine 1.x waitsFor(): a throwing predicate counts as "not yet", and a
+ * timeout always fails with "waitsFor timed out".
  */
 testTools.waitsFor = function( predicate, message, timeout ) {
 	return vi.waitFor( function() {
 		if ( !predicate() ) {
-			throw new Error( 'waitsFor timed out: ' + ( message || predicate.toString() ) );
+			throw new Error( 'not yet' );
 		}
-	}, { timeout: timeout || 5000, interval: 10 } );
+	}, { timeout: timeout || 5000, interval: 10 } ).catch( function() {
+		throw new Error( 'waitsFor timed out: ' + ( message || predicate.toString() ) );
+	} );
 };
 
 testTools.createLayout = function( config ) {

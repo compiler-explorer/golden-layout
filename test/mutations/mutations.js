@@ -65,14 +65,21 @@ exports.list = [
 		specs: [ C + 'creates a layout', IC + 'creates a layout' ]
 	},
 	{
+		// The Recorder component attaches its show/shown spies when it's
+		// constructed, so a layout that initialises early fires them before
+		// the spec checks they haven't been called.
+		id: 'register-component-inits',
+		file: LM,
+		from: 'this._components[ name ] = constructor;',
+		to: 'this._components[ name ] = constructor;\n\t\tif( this.isInitialised === false ) { this.init(); }',
+		specs: [ C + 'registers listeners' ]
+	},
+	{
 		id: 'init-create',
 		file: LM,
 		from: 'this._create( this.config );',
 		to: 'this._create( this.settings );',
-		specs: [
-			C + 'registers listeners',
-			IC + 'registeres listeners'
-		]
+		specs: [ IC + 'registeres listeners' ]
 	},
 	{
 		id: 'init-flag',
@@ -661,16 +668,15 @@ exports.list = [
 
 /*
  * Vacuous specs: they have no assertion that any mutation can make fail. Most
- * have no assertions at all and only check that a step doesn't throw; the two
- * "registers listeners" specs assert that listeners haven't been called before
- * attaching them, which nothing can break. They are ported as-is and listed in
+ * have no assertions at all and only check that a step doesn't throw;
+ * item-creation-events' "registeres listeners" asserts that fresh spies
+ * haven't been called before it attaches them, which nothing can break. They are ported as-is and listed in
  * the PR for discussion. For these specs alone, a thrown error counts as a kill.
  * (Specs that only create a layout with testTools.createLayout aren't here:
  * its queued wait for the layout to initialise is a check that can fail.)
  */
 exports.vacuous = [
 	C + 'creates a layout',
-	C + 'registers listeners',
 	C + 'destroys the layout',
 	DD + 'destroys the layout',
 	DS + 'destroys the layout',
@@ -725,6 +731,10 @@ exports.allowedDifferences = {
 	// tests) or drag onto the page also fail. Vitest isolates each file.
 	'destroy-items': 'leftover layouts leak across files under Karma',
 	'items-by-property': 'leftover layouts leak across files under Karma',
+	// Jasmine carries on after the failed expectation in "registers
+	// listeners", so under Karma that spec goes on to call init() a second
+	// time, and "has called listeners" then sees two show events.
+	'register-component-inits': 'Jasmine continues after a failed expectation and re-initialises',
 	// destroy() does nothing for a layout that never initialised.
 	'init-flag-missing': 'leftover layouts leak across files under Karma',
 	// This mutates the shared default config. Under Karma that leaks into every

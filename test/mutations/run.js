@@ -19,9 +19,10 @@
  * Its src/js must match this checkout's; Karma runs in a temporary copy of it.
  *
  * A run is valid evidence only if it has no unhandled errors (Vitest: from
- * the unhandled-errors-reporter.mjs reporter; Karma: browser errors such as
- * afterAll errors) and no file-level errors, and every baseline spec reported
- * a result. A mutation's expectLoadFailure names test files allowed to fail
+ * the unhandled-errors-reporter.mjs reporter, which also reports errors in
+ * describe-level hooks; Karma: browser errors such as afterAll errors, and
+ * uncaught errors or unhandled rejections reported during any spec) and no
+ * file-level errors, and every baseline spec reported a result. A mutation's expectLoadFailure names test files allowed to fail
  * to load: errors from them are allowed, and their specs (under Karma, the
  * remaining specs from the first of them on, since Karma stops there) may be
  * missing. A missing result never counts as a failure.
@@ -30,9 +31,9 @@
  *   - it failed on its own check: an assertion, or a waitsFor that timed out.
  *     A thrown error only counts for the specs in the vacuous list, which have
  *     no assertion a mutation can make fail. Specs are judged by their first
- *     failure. Under Karma, a spec whose failures include a Jasmine spec
- *     timeout, an uncaught error, or a waitsFor timeout mixed with other
- *     failures doesn't count at all;
+ *     failure. A spec that hit the test framework's own timeout (Vitest's
+ *     testTimeout, Jasmine's spec timeout), or whose Karma failures mix a
+ *     waitsFor timeout with others, doesn't count at all;
  *   - in a describe whose specs share state, no earlier spec in that describe
  *     failed, so the failure isn't left over from an earlier one. Specs in
  *     independentDescribes are exempt; in a readOnlyAfterSetup describe, only
@@ -130,12 +131,22 @@ function run( cmd, cmdArgs, options ) {
 		}, CHILD_TIMEOUT_MS );
 		child.stdout.on( 'data', function( d ) { output += d; } );
 		child.stderr.on( 'data', function( d ) { output += d; } );
-		child.on( 'close', function( code ) {
+		var finished = false;
+		var finish = function( code ) {
+			if( finished ) return;
+			finished = true;
 			clearTimeout( timer );
 			activeChildren.splice( activeChildren.indexOf( child ), 1 );
 			// Make sure nothing it started (e.g. a browser) outlives it.
-			killGroup( child );
+			if( child.pid ) killGroup( child );
 			resolve( { code: code, output: output, timedOut: timedOut } );
+		};
+		child.on( 'close', finish );
+		// A failed spawn resolves like a failed run (it has no results), so
+		// the caller carries on and restores the source.
+		child.on( 'error', function( e ) {
+			output += String( e && e.stack || e );
+			finish( null );
 		} );
 	} );
 }
@@ -193,7 +204,7 @@ function firstLine( message ) {
 function classify( suite, messages ) {
 	var first = String( messages[ 0 ] || '' );
 	if( suite === 'karma' ) {
-		if( messages.some( function( m ) { return /Timeout - |^Uncaught |\bthrown\b/.test( m ); } ) ) {
+		if( messages.some( function( m ) { return /Timeout - /.test( m ) || isUncaught( m ); } ) ) {
 			return 'invalid';
 		}
 		if( messages.some( function( m ) { return /waitsFor timed out/.test( m ); } ) ) {
@@ -207,7 +218,17 @@ function classify( suite, messages ) {
 	if( /waitsFor timed out/.test( first ) ) {
 		return 'wait';
 	}
+	// A spec that hit Vitest's own test timeout proves nothing, not even for
+	// a vacuous spec.
+	if( /Test timed out in /.test( first ) ) {
+		return 'invalid';
+	}
 	return /^AssertionError/.test( first ) ? 'assertion' : 'crash';
+}
+
+// Jasmine's entries for an error that escaped the spec's own code.
+function isUncaught( message ) {
+	return /^Uncaught |\bthrown\b|Unhandled promise rejection/.test( message );
 }
 
 // The test file an error's stack points into, if any.
@@ -247,8 +268,11 @@ function runVitest() {
 		}
 		// An unhandled error (e.g. thrown in an animation-frame callback) can
 		// make a spec fail for the wrong reason, so it always counts.
+		// Unhandled errors (e.g. thrown in an animation-frame callback) and
+		// errors in describe-level hooks can make specs fail for the wrong
+		// reason, so they always count against the run.
 		unhandled.forEach( function( e ) {
-			errors.push( { file: null, unhandled: true, message: 'unhandled error: ' + firstLine( e.message ) } );
+			errors.push( { file: e.file, unhandled: e.file === null, message: firstLine( e.message ) } );
 		} );
 		json.testResults.slice().sort( function( a, b ) {
 			return path.basename( a.name ) < path.basename( b.name ) ? -1 : 1;
@@ -300,6 +324,13 @@ function runKarma( dir, order ) {
 			for( var i = next; i < order.length; i++ ) {
 				if( order[ i ].slice( order[ i ].indexOf( ' > ' ) + 3 ) === suffix ) {
 					var result = { status: spec.skipped ? 'skipped' : ( spec.success ? 'passed' : 'failed' ) };
+					// As with Vitest's unhandled errors, an uncaught error during
+					// any spec makes the whole run invalid.
+					spec.log.forEach( function( l ) {
+						if( isUncaught( String( l ) ) ) {
+							errors.push( { file: null, unhandled: true, message: 'uncaught error in ' + suffix + ': ' + firstLine( l ) } );
+						}
+					} );
 					if( result.status === 'failed' ) {
 						result.message = firstLine( spec.log[ 0 ] ) + ( spec.log.length > 1 ? ' (+' + ( spec.log.length - 1 ) + ' more)' : '' );
 						result.kind = classify( 'karma', spec.log.map( function( l ) { return String( l ); } ) );
