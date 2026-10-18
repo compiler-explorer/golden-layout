@@ -43,6 +43,15 @@ module.exports = function( config ) {
 		logLevel: config.LOG_ERROR,
 		hostname: '127.0.0.1',
 		listenAddress: '127.0.0.1',
+		// The compat shim's waitsFor gives up after 5s. Jasmine's own spec
+		// timeout must be longer, or it fires first and the shim's failure
+		// lands on a later spec (mirrors Vitest's testTimeout of 10s).
+		client: {
+			jasmine: {
+				random: false,
+				timeoutInterval: 10000
+			}
+		},
 		reporters: [ 'jsonspec' ],
 		plugins: [
 			require( path.join( base, 'node_modules/karma-jasmine' ) ),

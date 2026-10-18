@@ -21,7 +21,7 @@ grunt dist   # rebuild dist/ and src/css from the sources
 npm test     # Vitest tests in headless Chrome, plus a type-check of index.d.ts
 ```
 
-The tests use [Vitest browser mode](https://vitest.dev/guide/browser/) with Playwright driving the system Chrome, so Chrome must be installed. They load jQuery and the concatenated build, made in memory from the sources exactly as `grunt dist` makes `dist/goldenlayout.js`. Run one file with `npx vitest run test/title-tests.js`, or filter by name with `-t`.
+The tests use [Vitest browser mode](https://vitest.dev/guide/browser/) with Playwright driving the system Chrome, so Chrome must be installed. They load jQuery and the concatenated build, made in memory from `build/ns.js` and the sources exactly as `grunt concat` (part of `grunt dist`) makes `dist/goldenlayout.js`. Run one file with `npx vitest run test/title-tests.js`, or filter by name with `-t`.
 
 `test/mutations/` holds a mutation check: for each spec, a small change to `src/js` that the spec must catch. Run it with `node test/mutations/run.js` (see the comment at the top of that file).
 

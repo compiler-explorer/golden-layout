@@ -18,23 +18,31 @@
  *
  * Its src/js must match this checkout's; Karma runs in a temporary copy of it.
  *
- * What counts as a kill, for a credited spec in one run of one suite:
- *   - the run is valid: no file-level errors (unless the mutation is marked
- *     expectLoadFailure) and every baseline spec reported a result;
- *   - the spec failed on its own check: an assertion, or a waitsFor that
- *     timed out. A thrown error (TypeError, RangeError...) only counts for
- *     specs in the vacuous list, which have no assertions to fail;
+ * A run is valid evidence only if it has no unhandled errors (Vitest: from
+ * the unhandled-errors-reporter.mjs reporter; Karma: browser errors such as
+ * afterAll errors) and no file-level errors, and every baseline spec reported
+ * a result. A mutation's expectLoadFailure names test files allowed to fail
+ * to load: errors from them are allowed, and their specs (under Karma, the
+ * remaining specs from the first of them on, since Karma stops there) may be
+ * missing. A missing result never counts as a failure.
+ *
+ * A credited spec is killed in a valid run when:
+ *   - it failed on its own check: an assertion, or a waitsFor that timed out.
+ *     A thrown error only counts for the specs in the vacuous list, which have
+ *     no assertion a mutation can make fail. Under Karma, a spec whose failures
+ *     include a Jasmine spec timeout, an uncaught error, or a waitsFor timeout
+ *     mixed with other failures doesn't count at all;
  *   - in a describe whose specs share state, no earlier spec in that describe
- *     failed, so the failure isn't left over from an earlier one (in a
- *     readOnlyAfterSetup describe, no earlier setup spec failed).
- * Specs listed as vacuous or crashOnly in mutations.js may be killed by a
- * thrown error instead.
- * A mutation must kill each of its specs in every repeat (a mutation's
+ *     failed, so the failure isn't left over from an earlier one. Specs in
+ *     independentDescribes are exempt; in a readOnlyAfterSetup describe, only
+ *     the setup specs have to pass.
+ * A mutation must kill each of its specs in every repeat: --repeat Vitest runs
+ * (default 2) and --karma-repeat Karma runs (default 1). A mutation's
  * karmaNotRequired lists specs whose Karma result is reported but not
- * required, with the reason): --repeat Vitest runs
- * (default 2) and --karma-repeat Karma runs (default 1). The two suites must
- * fail the same specs, unless the mutation is in allowedDifferences. The
- * unmutated baseline runs --baseline-runs times (default 3) in each suite.
+ * required, with the reason. Repeats must fail the same specs, and the two
+ * suites must fail the same specs unless the mutation is in
+ * allowedDifferences. The unmutated baseline runs --baseline-runs times
+ * (default 3) in each suite.
  *
  * One browser runs at a time (Vitest, then Karma), at nice 19. src/js is
  * modified in place while a mutation runs and restored afterwards (also on
@@ -176,18 +184,33 @@ function firstLine( message ) {
 }
 
 /**
- * Why a spec failed: 'assertion' (an expect failed), 'wait' (a waitsFor timed
- * out) or 'crash' (anything thrown by the code under test, or a test timeout).
+ * Why a spec failed, from its failure messages: 'assertion' (an expect
+ * failed), 'wait' (a waitsFor timed out), 'crash' (the code under test threw)
+ * or 'invalid' (evidence that can't be trusted: a Jasmine spec timeout, an
+ * uncaught error attributed to the spec, or a wait failure mixed with others).
  */
-function classify( suite, message ) {
-	if( /waitsFor timed out/.test( message ) ) {
+function classify( suite, messages ) {
+	var first = String( messages[ 0 ] || '' );
+	if( suite === 'karma' ) {
+		if( messages.some( function( m ) { return /Timeout - |^Uncaught |\bthrown\b/.test( m ); } ) ) {
+			return 'invalid';
+		}
+		if( messages.some( function( m ) { return /waitsFor timed out/.test( m ); } ) ) {
+			return messages.length === 1 ? 'wait' : 'invalid';
+		}
+		// Jasmine expectations don't stop the spec, so it may report several.
+		return messages.every( function( m ) { return /^Expected /.test( m ); } ) ? 'assertion' : 'crash';
+	}
+	if( /waitsFor timed out/.test( first ) ) {
 		return 'wait';
 	}
-	if( suite === 'vitest' ) {
-		return /^AssertionError/.test( message ) ? 'assertion' : 'crash';
-	}
-	// Jasmine expectation failures read "Expected ..."; errors read "TypeError: ...".
-	return /^Expected /.test( message ) ? 'assertion' : 'crash';
+	return /^AssertionError/.test( first ) ? 'assertion' : 'crash';
+}
+
+// The test file an error's stack points into, if any.
+function fileOf( message ) {
+	var match = /\btest\/([\w.-]+\.js)/.exec( String( message ) );
+	return match ? match[ 1 ] : null;
 }
 
 var runCount = 0;
@@ -197,34 +220,49 @@ var runCount = 0;
  * kind, message } }, errors: [...] } in the suite's file order.
  */
 function runVitest() {
-	var out = path.join( tmpRoot, 'vitest-' + ( runCount++ ) + '.json' );
-	return run( process.execPath, [ path.join( repo, 'node_modules/vitest/vitest.mjs' ), 'run', '--reporter=json', '--outputFile=' + out ], { cwd: repo } ).then( function( r ) {
+	var n = runCount++;
+	var out = path.join( tmpRoot, 'vitest-' + n + '.json' );
+	var unhandledOut = path.join( tmpRoot, 'vitest-unhandled-' + n + '.json' );
+	return run( process.execPath, [
+		path.join( repo, 'node_modules/vitest/vitest.mjs' ), 'run',
+		'--reporter=json', '--outputFile.json=' + out,
+		'--reporter=' + path.join( __dirname, 'unhandled-errors-reporter.mjs' )
+	], {
+		cwd: repo,
+		env: Object.assign( {}, process.env, { GL_UNHANDLED_ERRORS_OUT: unhandledOut } )
+	} ).then( function( r ) {
 		var results = {}, errors = [];
-		var json;
+		var json, unhandled;
 		if( r.timedOut ) {
-			errors.push( 'timed out' );
+			errors.push( { file: null, message: 'timed out' } );
 		}
 		try {
 			json = JSON.parse( fs.readFileSync( out, 'utf8' ) );
+			unhandled = JSON.parse( fs.readFileSync( unhandledOut, 'utf8' ) );
 		} catch( e ) {
-			return { results: results, errors: errors.concat( [ 'no JSON output: ' + r.output.slice( -2000 ) ] ) };
+			return { suite: 'vitest', results: results, errors: errors.concat( [ { file: null, message: 'no JSON output: ' + r.output.slice( -2000 ) } ] ) };
 		}
+		// An unhandled error (e.g. thrown in an animation-frame callback) can
+		// make a spec fail for the wrong reason, so it always counts.
+		unhandled.forEach( function( e ) {
+			errors.push( { file: null, unhandled: true, message: 'unhandled error: ' + firstLine( e.message ) } );
+		} );
 		json.testResults.slice().sort( function( a, b ) {
 			return path.basename( a.name ) < path.basename( b.name ) ? -1 : 1;
 		} ).forEach( function( file ) {
 			if( file.message ) {
-				errors.push( path.basename( file.name ) + ': ' + firstLine( file.message ) );
+				errors.push( { file: path.basename( file.name ), message: path.basename( file.name ) + ': ' + firstLine( file.message ) } );
 			}
 			file.assertionResults.forEach( function( a ) {
 				var result = { status: a.status === 'pending' ? 'skipped' : a.status };
 				if( result.status === 'failed' ) {
 					result.message = firstLine( ( a.failureMessages || [] )[ 0 ] );
-					result.kind = classify( 'vitest', result.message );
+					result.kind = classify( 'vitest', a.failureMessages || [] );
 				}
 				results[ key( file.name, a.ancestorTitles, a.title ) ] = result;
 			} );
 		} );
-		return { results: results, errors: errors };
+		return { suite: 'vitest', results: results, errors: errors };
 	} );
 }
 
@@ -242,14 +280,17 @@ function runKarma( dir, order ) {
 	} ).then( function( r ) {
 		var results = {}, errors = [], json;
 		if( r.timedOut ) {
-			errors.push( 'timed out' );
+			errors.push( { file: null, message: 'timed out' } );
 		}
 		try {
 			json = JSON.parse( fs.readFileSync( out, 'utf8' ) );
 		} catch( e ) {
-			return { results: results, errors: errors.concat( [ 'no JSON output: ' + r.output.slice( -2000 ) ] ) };
+			return { suite: 'karma', results: results, errors: errors.concat( [ { file: null, message: 'no JSON output: ' + r.output.slice( -2000 ) } ] ) };
 		}
-		errors = errors.concat( json.errors.map( firstLine ) );
+		// Browser errors: load failures, afterAll errors, uncaught errors.
+		errors = errors.concat( json.errors.map( function( e ) {
+			return { file: fileOf( e ), message: firstLine( e ) };
+		} ) );
 		var next = 0;
 		json.specs.forEach( function( spec ) {
 			var suffix = spec.suite.concat( [ spec.description ] ).join( ' > ' );
@@ -257,17 +298,17 @@ function runKarma( dir, order ) {
 				if( order[ i ].slice( order[ i ].indexOf( ' > ' ) + 3 ) === suffix ) {
 					var result = { status: spec.skipped ? 'skipped' : ( spec.success ? 'passed' : 'failed' ) };
 					if( result.status === 'failed' ) {
-						result.message = firstLine( spec.log[ 0 ] );
-						result.kind = classify( 'karma', result.message );
+						result.message = firstLine( spec.log[ 0 ] ) + ( spec.log.length > 1 ? ' (+' + ( spec.log.length - 1 ) + ' more)' : '' );
+						result.kind = classify( 'karma', spec.log.map( function( l ) { return String( l ); } ) );
 					}
 					results[ order[ i ] ] = result;
 					next = i + 1;
 					return;
 				}
 			}
-			errors.push( 'unmatched Karma spec: ' + suffix );
+			errors.push( { file: null, message: 'unmatched Karma spec: ' + suffix } );
 		} );
-		return { results: results, errors: errors };
+		return { suite: 'karma', results: results, errors: errors };
 	} );
 }
 
@@ -283,18 +324,37 @@ function failing( run, order ) {
 	} );
 }
 
+function fileOfSpec( spec ) {
+	return spec.slice( 0, spec.indexOf( ' > ' ) );
+}
+
 /**
  * Checks one run against the baseline spec list. Returns problems, or [] if
- * the run can be used as evidence.
+ * the run can be used as evidence. A mutation's expectLoadFailure names the
+ * test files allowed to fail to load; everything else is still checked.
  */
 function runProblems( run, order, m ) {
 	var problems = [];
-	if( run.errors.length && !( m && m.expectLoadFailure ) ) {
-		problems = problems.concat( run.errors.map( function( e ) { return 'file-level error: ' + e; } ) );
-	}
-	if( !( m && m.expectLoadFailure ) ) {
-		order.forEach( function( s ) {
-			if( !run.results[ s ] ) problems.push( 'no result for: ' + s );
+	var allowed = ( m && m.expectLoadFailure ) || [];
+	run.errors.forEach( function( e ) {
+		if( e.unhandled || e.file === null || allowed.indexOf( e.file ) === -1 ) {
+			problems.push( 'error: ' + e.message );
+		}
+	} );
+	var missing = order.filter( function( s ) { return !run.results[ s ]; } );
+	if( run.suite === 'karma' && missing.length ) {
+		// Karma runs every file in one page and stops at a file that fails to
+		// load, so a load failure leaves a gap at the end, starting in an
+		// allowed file. A gap anywhere else could mean results were matched
+		// to the wrong file (several files share describe and spec names).
+		var firstMissing = order.indexOf( missing[ 0 ] );
+		var isSuffix = missing.length === order.length - firstMissing;
+		if( !isSuffix || allowed.indexOf( fileOfSpec( missing[ 0 ] ) ) === -1 ) {
+			problems.push( 'Karma reported no result for ' + missing.length + ' specs, from: ' + missing[ 0 ] );
+		}
+	} else {
+		missing.forEach( function( s ) {
+			if( allowed.indexOf( fileOfSpec( s ) ) === -1 ) problems.push( 'no result for: ' + s );
 		} );
 	}
 	return problems;
@@ -312,7 +372,10 @@ function judge( run, spec, order ) {
 	if( result.status !== 'failed' ) {
 		return { killed: false, reason: result.status };
 	}
-	var vacuous = mutations.vacuous.indexOf( spec ) !== -1 || spec in mutations.crashOnly;
+	if( result.kind === 'invalid' ) {
+		return { killed: false, reason: 'untrustworthy failure (spec timeout or uncaught error): ' + result.message };
+	}
+	var vacuous = mutations.vacuous.indexOf( spec ) !== -1;
 	if( result.kind === 'crash' && !vacuous ) {
 		return { killed: false, reason: 'crashed rather than failing an assertion: ' + result.message };
 	}
@@ -383,8 +446,8 @@ function checkBaseline( vitestRuns, karmaRuns ) {
 			if( !( spec in reference ) ) problems.push( m.id + ' names an unknown spec: ' + spec );
 		} );
 	} );
-	Object.keys( mutations.crashOnly ).concat( mutations.vacuous ).forEach( function( spec ) {
-		if( !( spec in reference ) ) problems.push( 'vacuous/crashOnly lists name an unknown spec: ' + spec );
+	mutations.vacuous.forEach( function( spec ) {
+		if( !( spec in reference ) ) problems.push( 'the vacuous list names an unknown spec: ' + spec );
 	} );
 	Object.keys( mutations.readOnlyAfterSetup ).forEach( function( d ) {
 		if( !order.some( function( s ) { return describeOf( s ) === d; } ) ) problems.push( 'readOnlyAfterSetup names an unknown describe: ' + d );
@@ -521,9 +584,17 @@ function main() {
 						}
 					} );
 				} );
-				entry.problems.filter( function( p ) { return !/^not killed/.test( p ); } ).forEach( function( p ) {
+				entry.problems.filter( function( p, i, all ) {
+					return !/^not killed/.test( p ) && all.indexOf( p ) === i;
+				} ).forEach( function( p ) {
 					console.log( '    problem: ' + p );
 				} );
+				if( entry.sameFailures === false ) {
+					[ [ 'Karma only', entry.karmaOnly ], [ 'Vitest only', entry.vitestOnly ] ].forEach( function( d ) {
+						d[ 1 ].slice( 0, 10 ).forEach( function( spec ) { console.log( '    ' + d[ 0 ] + ': ' + spec ); } );
+						if( d[ 1 ].length > 10 ) console.log( '    ' + d[ 0 ] + ': ... and ' + ( d[ 1 ].length - 10 ) + ' more' );
+					} );
+				}
 			} );
 		}, Promise.resolve() );
 	} ).then( function() {
@@ -548,7 +619,7 @@ function summarise( report, args, order ) {
 	console.log( '' );
 	console.log( 'Mutations: ' + report.mutations.length + ', passing the check: ' + ( report.mutations.length - failedMutations.length ) );
 	console.log( 'Active specs: ' + active.length + ', killed: ' + Object.keys( killedBy ).length +
-		' (vacuous: ' + mutations.vacuous.length + ', crash-only: ' + Object.keys( mutations.crashOnly ).length + ')' );
+		' (vacuous: ' + mutations.vacuous.length + ')' );
 	if( failedMutations.length ) {
 		console.log( 'Mutations failing the check: ' + failedMutations.map( function( m ) { return m.id; } ).join( ', ' ) );
 	}

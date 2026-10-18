@@ -46,10 +46,10 @@ exports.list = [
 		file: LM,
 		from: 'window.GoldenLayout = lm.LayoutManager;',
 		to: 'window.GoldenLayou = lm.LayoutManager;',
-		// Spec files that read GoldenLayout while being collected fail to
-		// load. initialisation-tests.js still loads, and its spec fails on
-		// its own assertion.
-		expectLoadFailure: true,
+		// These spec files read GoldenLayout while being collected, so they
+		// fail to load. initialisation-tests.js still loads, and its spec
+		// fails on its own assertion.
+		expectLoadFailure: [ 'header-button-tests.js', 'popin-button-tests.js', 'xss_tests.js' ],
 		specs: [ IN + 'Finds the layoutmanager on the global namespace' ],
 		// Under Karma every file shares one page, and header-button-tests.js
 		// throwing while loading stops the later files' specs from running.
@@ -93,6 +93,15 @@ exports.list = [
 		]
 	},
 	{
+		// Without the flag, createLayout's wait for initialisation (a waitsFor
+		// queued after the spec body) times out.
+		id: 'init-flag-missing',
+		file: LM,
+		from: 'this.isInitialised = true;\n\t\tthis._adjustColumnsResponsive();',
+		to: 'this._adjustColumnsResponsive();',
+		specs: [ E + 'Creates an initial layout', ID + 'creates a layout', TM + 'Creates an initial layout' ]
+	},
+	{
 		id: 'destroy-items',
 		file: LM,
 		from: 'this.root.callDownwards( \'_$destroy\', [], true );',
@@ -130,13 +139,6 @@ exports.list = [
 		specs: [ S + 'Destroys the layout', IN + 'Destroys the layout' ]
 	},
 	{
-		id: 'to-config-keys',
-		file: LM,
-		from: 'if( key !== \'content\' ) {\n\t\t\t\t\tconfigNode[ key ] = item.config[ key ];',
-		to: 'if( key !== \'componentState\' ) {\n\t\t\t\t\tconfigNode[ key ] = item.config[ key ];',
-		specs: [ S + 'returns the initial state' ]
-	},
-	{
 		id: 'create-config-copies',
 		file: LM,
 		from: 'config = $.extend( true, {}, lm.config.defaultConfig, config );',
@@ -162,7 +164,7 @@ exports.list = [
 		file: 'src/js/items/Stack.js',
 		from: 'this.isStack = true;',
 		to: 'this.isStack = false;',
-		specs: [ CF + 'creates the right primitive types: stack and component' ]
+		specs: [ CF + 'creates the right primitive types: stack and component', E + 'can add children to the empty stack' ]
 	},
 	{
 		id: 'select-item-programmatic',
@@ -237,6 +239,13 @@ exports.list = [
 		from: 'this.isComponent = true;',
 		to: 'this.isComponent = false;',
 		specs: [ ID + 'finds the item' ]
+	},
+	{
+		id: 'component-state-reset',
+		file: 'src/js/items/Component.js',
+		from: 'this.isComponent = true;',
+		to: 'this.isComponent = true;\n\tthis.config.componentState = {};',
+		specs: [ S + 'returns the initial state' ]
 	},
 	{
 		id: 'component-default-title',
@@ -431,13 +440,6 @@ exports.list = [
 		from: 'this.contentItems.splice( index, 1 );',
 		to: 'this.contentItems.splice( index, 0 );',
 		specs: [ TM + 'Destroys a component and its parent' ]
-	},
-	{
-		id: 'stack-add-child',
-		file: 'src/js/items/Stack.js',
-		from: 'lm.items.AbstractContentItem.prototype.addChild.call( this, contentItem, index );',
-		to: '',
-		specs: [ E + 'can add children to the empty stack' ]
 	},
 	{
 		id: 'stack-add-child-parent',
@@ -673,6 +675,8 @@ exports.list = [
  * "registers listeners" specs assert that listeners haven't been called before
  * attaching them, which nothing can break. They are ported as-is and listed in
  * the PR for discussion. For these specs alone, a thrown error counts as a kill.
+ * (Specs that only create a layout with testTools.createLayout aren't here:
+ * its queued wait for the layout to initialise is a check that can fail.)
  */
 exports.vacuous = [
 	C + 'creates a layout',
@@ -681,34 +685,17 @@ exports.vacuous = [
 	DD + 'destroys the layout',
 	DS + 'destroys the layout',
 	D + 'destroys the layout',
-	E + 'Creates an initial layout',
 	E + 'destroys the layout',
 	ES + 'destroys the layout',
 	EB + 'destroys the layout',
-	ID + 'creates a layout',
 	ID + 'destroys the layout',
 	IC + 'creates a layout',
 	IC + 'registeres listeners',
 	IC + 'destroys the layout',
 	PO + 'destroys the layout',
 	TB + 'destroys the layout',
-	TI + 'destroys the layout',
-	TM + 'Creates an initial layout'
+	TI + 'destroys the layout'
 ];
-
-/*
- * Specs whose own check can't fail without throwing first, so only a crash
- * kills them. Listed in the PR for discussion. For these, as for the vacuous
- * specs, a thrown error counts as a kill.
- */
-exports.crashOnly = {
-	// The check reads config...componentState.testValue, so any mutation that
-	// loses the state makes the spec's own expression throw.
-	[ S + 'returns the initial state' ]: 'its check dereferences the state it checks for',
-	// addChild on a stack makes the new item active, which throws if the item
-	// wasn't actually added, before the length check runs.
-	[ E + 'can add children to the empty stack' ]: 'Stack.addChild throws before the length check if adding fails'
-};
 
 /*
  * Describes whose specs don't share state: each creates what it tests. In
@@ -749,6 +736,8 @@ exports.allowedDifferences = {
 	'destroy-items': 'leftover layouts leak across files under Karma',
 	'items-by-property': 'leftover layouts leak across files under Karma',
 	'stack-empty-init': 'leftover layouts leak across files under Karma',
+	// destroy() does nothing for a layout that never initialised.
+	'init-flag-missing': 'leftover layouts leak across files under Karma',
 	// This mutates the shared default config. Under Karma that leaks into every
 	// later file in the page; Vitest isolates each file.
 	'create-config-copies': 'mutated default config leaks across files under Karma',
