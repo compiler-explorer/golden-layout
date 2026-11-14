@@ -245,13 +245,14 @@ lm.utils.copy( lm.items.AbstractContentItem.prototype, {
 	 */
 	toggleMaximise: function( e ) {
 		e && e.preventDefault();
-		if( this.isMaximised === true ) {
-			this.layoutManager._$minimiseItem( this );
-		} else {
+		// Set before the layout manager emits 'maximised' or 'minimised', so listeners see the new state
+		this.isMaximised = !this.isMaximised;
+		if( this.isMaximised ) {
 			this.layoutManager._$maximiseItem( this );
+		} else {
+			this.layoutManager._$minimiseItem( this );
 		}
 
-		this.isMaximised = !this.isMaximised;
 		this.emitBubblingEvent( 'stateChanged' );
 	},
 

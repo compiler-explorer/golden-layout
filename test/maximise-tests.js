@@ -352,4 +352,23 @@ describe( 'Maximising an item while another item is maximised', function() {
 		expectRestored( layout );
 		layout.destroy();
 	} );
+
+	it( 'minimises the other item when maximised from its maximised listener', function() {
+		var layout = rowOfStacks( 2 ),
+			row = layout.root.contentItems[ 0 ],
+			first = row.contentItems[ 0 ],
+			second = row.contentItems[ 1 ];
+		first.on( 'maximised', function() {
+			second.toggleMaximise();
+		} );
+
+		first.toggleMaximise();
+
+		expect( first.isMaximised ).toBe( false );
+		expectMaximised( layout, second );
+
+		second.toggleMaximise();
+		expectRestored( layout );
+		layout.destroy();
+	} );
 } );
