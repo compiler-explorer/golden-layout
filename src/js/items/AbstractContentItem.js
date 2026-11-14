@@ -103,6 +103,8 @@ lm.utils.copy( lm.items.AbstractContentItem.prototype, {
 			throw new Error( 'Can\'t remove child item. Unknown content item' );
 		}
 
+		this._minimiseMaximisedDescendant();
+
 		/**
 		 * Call ._$destroy on the content item. This also calls ._$destroy on all its children
 		 */
@@ -171,6 +173,8 @@ lm.utils.copy( lm.items.AbstractContentItem.prototype, {
 	 * @returns {void}
 	 */
 	replaceChild: function( oldChild, newChild, _$destroyOldChild ) {
+
+		this._minimiseMaximisedDescendant();
 
 		newChild = this.layoutManager._$normalizeContentItem( newChild );
 
@@ -241,13 +245,14 @@ lm.utils.copy( lm.items.AbstractContentItem.prototype, {
 	 */
 	toggleMaximise: function( e ) {
 		e && e.preventDefault();
-		if( this.isMaximised === true ) {
-			this.layoutManager._$minimiseItem( this );
-		} else {
+		// Set before the layout manager emits 'maximised' or 'minimised', so listeners see the new state
+		this.isMaximised = !this.isMaximised;
+		if( this.isMaximised ) {
 			this.layoutManager._$maximiseItem( this );
+		} else {
+			this.layoutManager._$minimiseItem( this );
 		}
 
-		this.isMaximised = !this.isMaximised;
 		this.emitBubblingEvent( 'stateChanged' );
 	},
 
@@ -442,6 +447,28 @@ lm.utils.copy( lm.items.AbstractContentItem.prototype, {
 			if( activeContentItem && activeContentItem.isComponent ) {
 				activeContentItem.container[ methodName ]();
 			}
+		}
+	},
+
+	/**
+	 * A maximised item's element is moved out of its parent into the root, leaving a
+	 * placeholder in its place, until it is minimised again. Adding, removing or
+	 * replacing items around it would leave its element or the placeholder in the
+	 * wrong place, and resizing its siblings would shrink it to its share of a row or
+	 * column, so items minimise any maximised descendant before doing either.
+	 *
+	 * @returns {void}
+	 */
+	_minimiseMaximisedDescendant: function() {
+		var maximisedItem = this.layoutManager._maximisedItem,
+			item = maximisedItem && maximisedItem.parent;
+
+		while( item ) {
+			if( item === this ) {
+				maximisedItem.toggleMaximise();
+				return;
+			}
+			item = item.parent;
 		}
 	},
 

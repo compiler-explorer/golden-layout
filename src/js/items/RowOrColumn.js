@@ -99,6 +99,8 @@ lm.utils.copy( lm.items.RowOrColumn.prototype, {
 			throw new Error( 'Can\'t remove child. ContentItem is not child of this Row or Column' );
 		}
 
+		this._minimiseMaximisedDescendant();
+
 		/**
 		 * Remove the splitter before the item or after if the item happens
 		 * to be the first in the row/column
@@ -404,26 +406,6 @@ lm.utils.copy( lm.items.RowOrColumn.prototype, {
 		 */
 		for( i = 0; i < this.contentItems.length; i++ ) {
 			this.contentItems[ i ].config.width = (allEntries[ i ].width / sizeData.totalWidth) * 100;
-		}
-	},
-
-	/**
-	 * A maximised item's element is moved out of its parent into the root until it is
-	 * minimised again, so new siblings can't be placed next to it, and resizing this
-	 * item's children would shrink it to its share of this row or column.
-	 *
-	 * @returns {void}
-	 */
-	_minimiseMaximisedDescendant: function() {
-		var maximisedItem = this.layoutManager._maximisedItem,
-			item = maximisedItem && maximisedItem.parent;
-
-		while( item ) {
-			if( item === this ) {
-				maximisedItem.toggleMaximise();
-				return;
-			}
-			item = item.parent;
 		}
 	},
 
