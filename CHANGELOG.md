@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.6.5](https://github.com/compiler-explorer/golden-layout/compare/v1.6.4...v1.6.5) (2026-11-14)
+
+
+### Bug Fixes
+
+* minimise a maximised item before removing, replacing or dragging items around it ([#24](https://github.com/compiler-explorer/golden-layout/issues/24)) ([e35a3b4](https://github.com/compiler-explorer/golden-layout/commit/e35a3b4e2cf3aefdc29ce27dca29401069544be3))
+
 ## [1.6.4](https://github.com/compiler-explorer/golden-layout/compare/v1.6.3...v1.6.4) (2026-11-14)
 
 
