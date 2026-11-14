@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.6.4](https://github.com/compiler-explorer/golden-layout/compare/v1.6.3...v1.6.4) (2026-11-14)
+
+
+### Bug Fixes
+
+* minimise a maximised item before adding a sibling ([#22](https://github.com/compiler-explorer/golden-layout/issues/22)) ([ced1169](https://github.com/compiler-explorer/golden-layout/commit/ced11691474a2acb26d3ed2e5005109256fc99ca))
+* minimise a maximised item before adding a sibling to its row or column ([ced1169](https://github.com/compiler-explorer/golden-layout/commit/ced11691474a2acb26d3ed2e5005109256fc99ca))
+
 ## [1.6.3](https://github.com/compiler-explorer/golden-layout/compare/v1.6.2...v1.6.3) (2026-10-18)
 
 
