@@ -43,7 +43,14 @@ lm.utils.copy( lm.controls.DragSource.prototype, {
 	 * @returns {void}
 	 */
 	_onDragStart: function( x, y ) {
-		var itemConfig = this._itemConfig;
+		var itemConfig = this._itemConfig,
+			maximisedItem = this._layoutManager._maximisedItem;
+
+		// As when dragging a tab: the drop targets are hidden behind a maximised item
+		if( maximisedItem ) {
+			maximisedItem.toggleMaximise();
+		}
+
 		if( lm.utils.isFunction( itemConfig ) ) {
 			itemConfig = itemConfig();
 		}

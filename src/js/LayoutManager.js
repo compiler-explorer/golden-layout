@@ -540,7 +540,7 @@ lm.utils.copy( lm.LayoutManager.prototype, {
 	 *************************/
 	_$maximiseItem: function( contentItem ) {
 		if( this._maximisedItem !== null ) {
-			this._$minimiseItem( this._maximisedItem );
+			this._maximisedItem.toggleMaximise();
 		}
 		this._maximisedItem = contentItem;
 		this._maximisedItem.addId( '__glMaximised' );
